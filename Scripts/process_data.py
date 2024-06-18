@@ -3,20 +3,22 @@ import h5py
 from tqdm import tqdm
 import pickle
 import numpy as np
+from dotenv import load_dotenv
 
-# Constants
-RAW_DATA_PATH = '../Data/raw_data'
-SEGMENTED_DATA_PATH = '../Data/segmented_data'
-DATASET_PATH = '../Data/raw_dataset'
+load_dotenv()
 
-NUMPY_SEED = 42
+RAW_DATA_PATH = os.getenv('RAW_DATA_PATH')
+SEGMENTED_DATA_PATH = os.getenv('SEGMENTED_DATA_PATH')
+DATASET_PATH = os.getenv('DATASET_PATH')
 
-fs = 125 # Sampling frequency
-samples_per_segment = 1024 # 1024 samples per segment
-stride_per_segment = 512 # 512 samples stride per segment
+NUMPY_SEED = int(os.getenv('NUMPY_SEED'))
 
-MAX_PROCESSED = 11
-MAX_DATASET_SIZE = 11
+fs = int(os.getenv('SAMPLING_FREQUENCY'))
+SAMPLES_PER_SEGMENT = int(os.getenv('SAMPLES_PER_SEGMENT'))
+SAMPLES_PER_STRIDE = int(os.getenv('SAMPLES_PER_STRIDE'))
+
+MAX_PROCESSED = int(os.getenv('MAX_SEGMENTED_INSTANCES'))
+MAX_DATASET_SIZE = int(os.getenv('MAX_DATASET_INSTANCES'))
 
 # Signal enum
 class Signal:
@@ -69,10 +71,10 @@ def process_data(max_processed = 1000):
             sbp_segments = []
             dbp_segments = []
 
-            for j in tqdm(range(0, len(ppg) - samples_per_segment, stride_per_segment), desc=f'Segmenting Record {record_id}/{record_amount}'):
-                ppg_segments.append(ppg[j:j+samples_per_segment])
-                sbp_segments.append(max(abp[j:j+samples_per_segment]))
-                dbp_segments.append(min(abp[j:j+samples_per_segment]))
+            for j in tqdm(range(0, len(ppg) - SAMPLES_PER_SEGMENT, SAMPLES_PER_STRIDE), desc=f'Segmenting Record {record_id}/{record_amount}'):
+                ppg_segments.append(ppg[j:j + SAMPLES_PER_SEGMENT])
+                sbp_segments.append(max(abp[j:j + SAMPLES_PER_SEGMENT]))
+                dbp_segments.append(min(abp[j:j + SAMPLES_PER_SEGMENT]))
 
             pickle.dump(np.array(ppg_segments), open(os.path.join(SEGMENTED_DATA_PATH, 'ppgs', f'Part_{file_id}_{record_id}.pkl'), 'wb'))
             pickle.dump(np.array(sbp_segments), open(os.path.join(SEGMENTED_DATA_PATH, 'sbps', f'Part_{file_id}_{record_id}.pkl'), 'wb'))

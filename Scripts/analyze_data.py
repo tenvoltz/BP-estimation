@@ -4,16 +4,18 @@ import matplotlib.pyplot as plt
 import h5py
 import numpy as np
 from tqdm import tqdm
+from dotenv import load_dotenv
 
 class Signal:
     PPG = 0
     ABP = 1
     ECG = 2
 
-RAW_DATA_PATH = '../Data/raw_data'
-RESULTS_PATH = '../Results'
-FOLD_AMOUNT = 5
-fs = 125 # Sampling frequency
+load_dotenv()
+RAW_DATA_PATH = os.getenv('RAW_DATA_PATH')
+RESULTS_PATH = os.getenv('RESULTS_PATH')
+FOLD_AMOUNT = int(os.getenv('FOLD_AMOUNT'))
+fs = int(os.getenv('SAMPLING_FREQUENCY'))
 
 def plot_mse_history():
     for fold_id in range(FOLD_AMOUNT):
@@ -52,6 +54,7 @@ def plot_random_signals(max_seconds=20):
     plt.title('ABP')
     plt.tight_layout()
     plt.show()
+
 
 if __name__ == '__main__':
     plot_mse_history()

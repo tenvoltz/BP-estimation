@@ -2,12 +2,14 @@ import os
 import pickle
 from tqdm import tqdm
 import torch.utils.data as Data
+from dotenv import load_dotenv
 
 from metrics import evaluate_metrics
 from models import *
 
-FOLDED_DATASET_PATH = '../Data/split_dataset'
-TRAINED_MODEL_PATH = '../Models/model_0.pt'
+load_dotenv()
+FOLDED_DATASET_PATH = os.getenv('FOLDED_DATASET_PATH')
+TRAINED_MODEL_PATH = os.getenv('TRAINED_MODEL_PATH')
 
 def evaluate_model():
     data = pickle.load(open(os.path.join(FOLDED_DATASET_PATH, 'test.pkl'), 'rb'))

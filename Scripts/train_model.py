@@ -2,19 +2,22 @@ import os
 from tqdm import tqdm
 import pickle
 import torch.utils.data as Data
+from dotenv import load_dotenv
 
 from models import *
 
-FOLDED_DATASET_PATH = '../Data/split_dataset'
-MODEL_PATH = '../Models'
-RESULTS_PATH = '../Results'
+load_dotenv()
 
-SIGNAL_LENGTH = 1024
-FOLD_AMOUNT = 5
-LEARNING_RATE = 0.001
+FOLDED_DATASET_PATH = os.getenv('FOLDED_DATASET_PATH')
+MODEL_PATH = os.getenv('MODEL_PATH')
+RESULTS_PATH = os.getenv('RESULTS_PATH')
 
-BATCH_SIZE = 64
-EPOCHS = 2
+SIGNAL_LENGTH = int(os.getenv('SAMPLES_PER_SEGMENT'))
+FOLD_AMOUNT = int(os.getenv('FOLD_AMOUNT'))
+
+LEARNING_RATE = float(os.getenv('LEARNING_RATE'))
+BATCH_SIZE = int(os.getenv('BATCH_SIZE'))
+EPOCHS = int(os.getenv('EPOCHS'))
 
 def train_model():
     if not os.path.exists(MODEL_PATH):

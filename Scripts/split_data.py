@@ -3,16 +3,19 @@ from tqdm import tqdm
 import h5py
 import numpy as np
 import pickle
+from dotenv import load_dotenv
 
-SIGNAL_LENGTH = 1024
-DATASET_PATH = '../Data/raw_dataset/dataset.hdf5'
-FOLDED_DATASET_PATH = '../Data/split_dataset'
+load_dotenv()
 
-TRAIN_TEST_SPLIT = 0.8
-FOLD_AMOUNT = 5
+SIGNAL_LENGTH = int(os.getenv('SAMPLES_PER_SEGMENT'))
+DATASET_PATH = os.getenv('DATASET_PATH')
+FOLDED_DATASET_PATH = os.getenv('FOLDED_DATASET_PATH')
+
+TRAIN_TEST_SPLIT = float(os.getenv('TRAIN_TEST_SPLIT'))
+FOLD_AMOUNT = int(os.getenv('FOLD_AMOUNT'))
 
 def fold_data():
-    if not os.path.isfile(DATASET_PATH):
+    if not os.path.isfile(os.path.join(DATASET_PATH, 'dataset.hdf5')):
         print('Dataset file not found')
         return
     if not os.path.isdir(FOLDED_DATASET_PATH):
@@ -25,7 +28,7 @@ def fold_data():
 
     for fold_id in tqdm(range(FOLD_AMOUNT), desc='Folding Data'):
         # Load the dataset
-        f = h5py.File(DATASET_PATH, 'r')
+        f = h5py.File(os.path.join(DATASET_PATH, 'dataset.hdf5'), 'r')
         segment_amount = len(f['data'])
 
         # Control the amount of data in each fold
@@ -102,7 +105,7 @@ def fold_data():
 
         pickle.dump({'min_ppg': min_ppg, 'max_ppg': max_ppg}, open(os.path.join(FOLDED_DATASET_PATH, f'stats_{fold_id}.pkl'), 'wb'))
 
-    f = h5py.File(DATASET_PATH, 'r')
+    f = h5py.File(os.path.join(DATASET_PATH, 'dataset.hdf5'), 'r')
 
     x_test = []
     y_test = []
