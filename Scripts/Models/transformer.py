@@ -1,9 +1,16 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-
+import os
+from dotenv import load_dotenv
 import math
 
+load_dotenv()
+DATA_PATH = os.getenv('DATA_PATH')
+DATASET_NAME = os.getenv('DATASET_NAME')
+load_dotenv(os.path.join(DATA_PATH, DATASET_NAME, '.env'))
+
+SIGNAL_LENGTH = int(os.getenv('SAMPLES_PER_SEGMENT'))
 class Attention(nn.Module):
     def __init__(self, key_size, dropout=None):
         super().__init__()
@@ -25,7 +32,7 @@ class Attention(nn.Module):
         return torch.matmul(probs, V), probs
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, embedding_size, max_len=1024, dropout=None):
+    def __init__(self, embedding_size, max_len=SIGNAL_LENGTH, dropout=None):
         super().__init__()
 
         self.dropout = nn.Dropout(p=dropout) if dropout is not None else None
@@ -41,7 +48,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('encoding', encoding)
 
     def forward(self, X):
-        X = X + self.encoding[:, :X.size(1), :].to(X.device)
+        X = X + self.encoding[:, :X.size(1), :]
         return self.dropout(X) if self.dropout is not None else X
 
 class PositionwiseFeedForward(nn.Module):

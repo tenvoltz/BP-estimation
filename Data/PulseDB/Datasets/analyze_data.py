@@ -12,19 +12,17 @@ class Signal:
     ECG = 2
 
 load_dotenv()
+DATA_PATH = os.getenv('DATA_PATH')
+DATASET_NAME = os.getenv('DATASET_NAME')
+load_dotenv(os.path.join(DATA_PATH, DATASET_NAME, '.env'))
+
 RAW_DATA_PATH = os.getenv('RAW_DATA_PATH')
-RESULTS_PATH = os.getenv('RESULTS_PATH')
 FOLD_AMOUNT = int(os.getenv('FOLD_AMOUNT'))
+DATASET_PATH = os.getenv('DATASET_PATH')
+MAX_DATASET_SIZE = int(os.getenv('MAX_DATASET_INSTANCES'))
 fs = int(os.getenv('SAMPLING_FREQUENCY'))
 
-def plot_mse_history():
-    for fold_id in range(FOLD_AMOUNT):
-        mse_history = pickle.load(open(os.path.join(RESULTS_PATH, f'mse_{fold_id}.pkl'), 'rb'))
-        plt.plot(mse_history, label=f'Fold {fold_id}')
-    plt.xlabel('Epoch')
-    plt.ylabel('MSE')
-    plt.legend()
-    plt.show()
+MODEL = os.getenv('MODEL')
 
 def plot_random_signals(max_seconds=20):
     # Randomly select a file between 1 and 4
@@ -55,7 +53,29 @@ def plot_random_signals(max_seconds=20):
     plt.tight_layout()
     plt.show()
 
+def plot_bp_histogram():
+    f = h5py.File(os.path.join(DATASET_PATH, f'dataset_{MAX_DATASET_SIZE}.hdf5'), 'r')
+    segment_amount = len(f['data'])
+    sbps = []
+    dbps = []
+    for i in tqdm(range(segment_amount), desc='Reading Data'):
+        sbps.append(f['data'][i][-2])
+        dbps.append(f['data'][i][-1])
+
+    plt.figure(figsize=(10, 5))
+    plt.subplot(2, 1, 1)
+    plt.hist(sbps, bins=50)
+
+    plt.title('SBP')
+
+    plt.subplot(2, 1, 2)
+    plt.hist(dbps, bins=50)
+
+    plt.title('DBP')
+
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == '__main__':
-    plot_mse_history()
-    plot_random_signals()
+    # plot_random_signals()
+    plot_bp_histogram()
