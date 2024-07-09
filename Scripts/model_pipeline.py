@@ -5,6 +5,7 @@ import shutil
 import os
 import inspect
 import torchinfo
+import torch
 
 from evaluate_model import evaluate_model
 from train_model import train_model
@@ -20,8 +21,12 @@ ENV_PATH = os.getenv('ENV_PATH')
 MODEL = os.getenv('MODEL')
 FOLD_AMOUNT = int(os.getenv('FOLD_AMOUNT'))
 BATCH_SIZE = int(os.getenv('BATCH_SIZE'))
-SIGNAL_LENGTH = int(os.getenv('SAMPLES_PER_SEGMENT'))
-SIGNAL_AMOUNT = int(os.getenv('SIGNAL_AMOUNT'))
+SIGNAL_LENGTH = int(os.getenv('INPUT_LENGTH'))
+SIGNALS_LIST = [signal.strip().lower() for signal in os.getenv('SIGNALS').split(',')]
+DEMOGRAPHICS_LIST = [demographic.strip().lower() for demographic in os.getenv('DEMOGRAPHICS').split(',')] \
+    if os.getenv('DEMOGRAPHICS') is not None else None
+TARGETS_LIST = [target.strip().lower() for target in os.getenv('TARGETS').split(',')]
+
 TEST_MODE = os.getenv('TEST_MODE').lower() == 'true'
 
 LIST_OF_MODEL_NAMES = [name for name, obj in inspect.getmembers(models)
@@ -29,14 +34,39 @@ LIST_OF_MODEL_NAMES = [name for name, obj in inspect.getmembers(models)
 
 outputs_path = os.path.join(OUTPUTS_PATH, f'{MODEL}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}')
 
-def setup_layout():
-    layout = {"Fold-by-fold": {}}
+def setup_layout(best_fold_id=0):
+    layout = {}
+    for model in LIST_OF_MODEL_NAMES:
+        layout[model] = {}
+        for fold_id in range(FOLD_AMOUNT):
+            layout[model][f'Fold {fold_id} loss'] = ["Multiline", [f"{model}/{fold_id}/Loss/Train",
+                                                                    f"{model}/{fold_id}/Loss/Validation"]]
+            layout[model][f'Fold {fold_id} MSE'] = ["Multiline", [f"{model}/{fold_id}/MSE/Train",
+                                                                  f"{model}/{fold_id}/MSE/Validation"]]
+            layout[model][f'Fold {fold_id} MAE'] = ["Multiline", [f"{model}/{fold_id}/MAE/Train",
+                                                                  f"{model}/{fold_id}/MAE/Validation"]]
+    layout["Overall"] = {
+        "training": ["Multiline", [f"{MODEL}/{fold_id}/Loss/Train" for fold_id in range(FOLD_AMOUNT)]],
+        "validation": ["Multiline", [f"{MODEL}/{fold_id}/Loss/Validation" for fold_id in range(FOLD_AMOUNT)]],
+        "training MSE": ["Multiline", [f"{MODEL}/{fold_id}/MSE/Train" for fold_id in range(FOLD_AMOUNT)]],
+        "validation MSE": ["Multiline", [f"{MODEL}/{fold_id}/MSE/Validation" for fold_id in range(FOLD_AMOUNT)]],
+        "training MAE": ["Multiline", [f"{MODEL}/{fold_id}/MAE/Train" for fold_id in range(FOLD_AMOUNT)]],
+        "validation MAE": ["Multiline", [f"{MODEL}/{fold_id}/MAE/Validation" for fold_id in range(FOLD_AMOUNT)]]
+    }
+    layout["Between Models"] = {}
     for fold_id in range(FOLD_AMOUNT):
-        layout["Fold-by-fold"][f'Fold {fold_id} loss'] = ["Multiline", [f"{MODEL}/{fold_id}/MSE/Train",
-                                                                   f"{MODEL}/{fold_id}/MSE/Validation"]]
-    layout["Multiline Overall"] = {
-        "training": ["Multiline", [f"{MODEL}/{fold_id}/MSE/Train" for fold_id in range(FOLD_AMOUNT)]],
-        "validation": ["Multiline", [f"{MODEL}/{fold_id}/MSE/Validation" for fold_id in range(FOLD_AMOUNT)]]
+        layout["Between Models"][f'Fold {fold_id} Training'] = ["Multiline", [f"{model}/{fold_id}/Loss/Train" for model in LIST_OF_MODEL_NAMES]]
+        layout["Between Models"][f'Fold {fold_id} Validation'] = ["Multiline", [f"{model}/{fold_id}/Loss/Validation" for model in LIST_OF_MODEL_NAMES]]
+        layout["Between Models"][f'Fold {fold_id} Both'] = ["Multiline",
+                                                            [f"{model}/{fold_id}/Loss/Train" for model in LIST_OF_MODEL_NAMES] +
+                                                            [f"{model}/{fold_id}/Loss/Validation" for model in LIST_OF_MODEL_NAMES]]
+    layout["Best Model"] = {
+        "training": ["Multiline", [f"{MODEL}/{best_fold_id}/Loss/Train"]],
+        "validation": ["Multiline", [f"{MODEL}/{best_fold_id}/Loss/Validation"]],
+        "training MSE": ["Multiline", [f"{MODEL}/{best_fold_id}/MSE/Train"]],
+        "validation MSE": ["Multiline", [f"{MODEL}/{best_fold_id}/MSE/Validation"]],
+        "training MAE": ["Multiline", [f"{MODEL}/{best_fold_id}/MAE/Train"]],
+        "validation MAE": ["Multiline", [f"{MODEL}/{best_fold_id}/MAE/Validation"]]
     }
 
     return layout
@@ -47,9 +77,15 @@ def copy_metadata():
         with open(os.path.join(DATA_PATH, DATASET_NAME, '.env'), 'r', encoding="utf-8") as env_file:
             shutil.copyfileobj(env_file, f)
     model = getattr(models, MODEL)()
-    model_stat = str(torchinfo.summary(model, (BATCH_SIZE, SIGNAL_AMOUNT, SIGNAL_LENGTH), verbose=0))
+    # Simulating running one sample through the model
+    dummy_input = {'signals': torch.randn(1, len(SIGNALS_LIST), SIGNAL_LENGTH)}
+    if DEMOGRAPHICS_LIST is not None:
+        dummy_input['demographics'] = torch.randn(1, len(DEMOGRAPHICS_LIST))
+    model_stat = str(torchinfo.summary(model, input_data=[dummy_input], verbose=2))
+    input_shape = str({key: dummy_input[key].shape for key in dummy_input})
     with open(os.path.join(outputs_path, 'metadata.txt'), 'a',  encoding="utf-8") as f:
         f.write("\n\n")
+        f.write(input_shape)
         f.write(model_stat)
         f.write("\n\n")
         f.write(inspect.getsource(getattr(models, MODEL)))
@@ -63,12 +99,14 @@ def pipeline():
     writer = SummaryWriter(
         log_dir=os.path.join(outputs_path, 'Results', f'{MODEL}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'),
         filename_suffix=f'_{MODEL}')
-    writer.add_custom_scalars(setup_layout())
 
     best_fold_id = train_model(outputs_path=outputs_path, writer=writer)
     print(f"Best fold: {best_fold_id}")
+    with open(os.path.join(outputs_path, 'metadata.txt'), 'a', encoding="utf-8") as f:
+        f.write(f"Best fold: {best_fold_id}\n")
     evaluate_model(writer=writer, model_path=outputs_path, version=best_fold_id, test_mode=TEST_MODE)
 
+    writer.add_custom_scalars(setup_layout(best_fold_id))
     writer.flush()
 
 if __name__ == '__main__':

@@ -29,7 +29,6 @@ def fold_data():
     if not os.path.isdir(FOLDED_DATASET_PATH):
         os.mkdir(FOLDED_DATASET_PATH)
 
-    training_amount = 0
     segment_amount = 0
 
     for fold_id in tqdm(range(FOLD_AMOUNT), desc='Folding Data'):
@@ -57,10 +56,20 @@ def fold_data():
         validation_starts[FOLD_AMOUNT] = segment_amount
 
         # Split the data
-        x_train = {'ppg': [], 'vpg': [], 'apg': [], 'demographics': []}
-        x_val = {'ppg': [], 'vpg': [], 'apg': [], 'demographics': []}
-        y_train = []
-        y_val = []
+        data_train = {'signals': {
+            'ppg': [], 'vpg': [], 'apg': []
+        }, 'demographics': {
+            'age': [], 'gender': [], 'height': [], 'weight': [], 'bmi': []
+        }, 'targets': {
+            'sbp': [], 'dbp': []
+        }}
+        data_val = {'signals': {
+            'ppg': [], 'vpg': [], 'apg': []
+        }, 'demographics': {
+            'age': [], 'gender': [], 'height': [], 'weight': [], 'bmi': []
+        }, 'targets': {
+            'sbp': [], 'dbp': []
+        }}
 
         validation_start = validation_starts[fold_id]
         validation_end = validation_starts[fold_id + 1]
@@ -73,11 +82,16 @@ def fold_data():
         max_dbp, min_dbp = -10000, 10000
 
         for i in tqdm(range(0, validation_start), desc=f'Fold {fold_id} - Training Data (left)'):
-            x_train['ppg'].append(ppgs[i].reshape(1, SIGNAL_LENGTH))
-            x_train['vpg'].append(vpgs[i].reshape(1, SIGNAL_LENGTH))
-            x_train['apg'].append(apgs[i].reshape(1, SIGNAL_LENGTH))
-            x_train['demographics'].append(np.array([ages[i], genders[i], heights[i], weights[i], bmis[i]]))
-            y_train.append([sbps[i], dbps[i]])
+            data_train['signals']['ppg'].append(ppgs[i].reshape(1, SIGNAL_LENGTH))
+            data_train['signals']['vpg'].append(vpgs[i].reshape(1, SIGNAL_LENGTH))
+            data_train['signals']['apg'].append(apgs[i].reshape(1, SIGNAL_LENGTH))
+            data_train['demographics']['age'].append(ages[i])
+            data_train['demographics']['gender'].append(genders[i])
+            data_train['demographics']['height'].append(heights[i])
+            data_train['demographics']['weight'].append(weights[i])
+            data_train['demographics']['bmi'].append(bmis[i])
+            data_train['targets']['sbp'].append(sbps[i])
+            data_train['targets']['dbp'].append(dbps[i])
 
             max_ppg, min_ppg = max(max_ppg, max(ppgs[i])), min(min_ppg, min(ppgs[i]))
             max_vpg, min_vpg = max(max_vpg, max(vpgs[i])), min(min_vpg, min(vpgs[i]))
@@ -87,25 +101,28 @@ def fold_data():
             max_dbp, min_dbp = max(max_dbp, dbps[i]), min(min_dbp, dbps[i])
 
         for i in tqdm(range(validation_start, validation_end), desc=f'Fold {fold_id} - Validation Data'):
-            x_val['ppg'].append(ppgs[i].reshape(1, SIGNAL_LENGTH))
-            x_val['vpg'].append(vpgs[i].reshape(1, SIGNAL_LENGTH))
-            x_val['apg'].append(apgs[i].reshape(1, SIGNAL_LENGTH))
-            x_val['demographics'].append(np.array([ages[i], genders[i], heights[i], weights[i], bmis[i]]))
-            y_val.append([sbps[i], dbps[i]])
-
-            max_ppg, min_ppg = max(max_ppg, max(ppgs[i])), min(min_ppg, min(ppgs[i]))
-            max_vpg, min_vpg = max(max_vpg, max(vpgs[i])), min(min_vpg, min(vpgs[i]))
-            max_apg, min_apg = max(max_apg, max(apgs[i])), min(min_apg, min(apgs[i]))
-
-            max_sbp, min_sbp = max(max_sbp, sbps[i]), min(min_sbp, sbps[i])
-            max_dbp, min_dbp = max(max_dbp, dbps[i]), min(min_dbp, dbps[i])
+            data_val['signals']['ppg'].append(ppgs[i].reshape(1, SIGNAL_LENGTH))
+            data_val['signals']['vpg'].append(vpgs[i].reshape(1, SIGNAL_LENGTH))
+            data_val['signals']['apg'].append(apgs[i].reshape(1, SIGNAL_LENGTH))
+            data_val['demographics']['age'].append(ages[i])
+            data_val['demographics']['gender'].append(genders[i])
+            data_val['demographics']['height'].append(heights[i])
+            data_val['demographics']['weight'].append(weights[i])
+            data_val['demographics']['bmi'].append(bmis[i])
+            data_val['targets']['sbp'].append(sbps[i])
+            data_val['targets']['dbp'].append(dbps[i])
 
         for i in tqdm(range(validation_end, segment_amount), desc=f'Fold {fold_id} - Training Data (right)'):
-            x_train['ppg'].append(ppgs[i].reshape(1, SIGNAL_LENGTH))
-            x_train['vpg'].append(vpgs[i].reshape(1, SIGNAL_LENGTH))
-            x_train['apg'].append(apgs[i].reshape(1, SIGNAL_LENGTH))
-            x_train['demographics'].append(np.array([ages[i], genders[i], heights[i], weights[i], bmis[i]]))
-            y_train.append([sbps[i], dbps[i]])
+            data_train['signals']['ppg'].append(ppgs[i].reshape(1, SIGNAL_LENGTH))
+            data_train['signals']['vpg'].append(vpgs[i].reshape(1, SIGNAL_LENGTH))
+            data_train['signals']['apg'].append(apgs[i].reshape(1, SIGNAL_LENGTH))
+            data_train['demographics']['age'].append(ages[i])
+            data_train['demographics']['gender'].append(genders[i])
+            data_train['demographics']['height'].append(heights[i])
+            data_train['demographics']['weight'].append(weights[i])
+            data_train['demographics']['bmi'].append(bmis[i])
+            data_train['targets']['sbp'].append(sbps[i])
+            data_train['targets']['dbp'].append(dbps[i])
 
             max_ppg, min_ppg = max(max_ppg, max(ppgs[i])), min(min_ppg, min(ppgs[i]))
             max_vpg, min_vpg = max(max_vpg, max(vpgs[i])), min(min_vpg, min(vpgs[i]))
@@ -117,67 +134,77 @@ def fold_data():
         f.close()
         del f
 
-        x_train['ppg'] = np.array(x_train['ppg'])
-        x_train['vpg'] = np.array(x_train['vpg'])
-        x_train['apg'] = np.array(x_train['apg'])
-        x_train['demographics'] = np.array(x_train['demographics'])
+        # Convert to numpy arrays
+        for key in data_train['signals'].keys():
+            data_train['signals'][key] = np.array(data_train['signals'][key])
+        for key in data_train['demographics'].keys():
+            data_train['demographics'][key] = np.array(data_train['demographics'][key])
+        for key in data_train['targets'].keys():
+            data_train['targets'][key] = np.array(data_train['targets'][key])
         # Min-max Normalize PPG, VPG, and APG
-        x_train['ppg'] = (x_train['ppg'] - min_ppg) / (max_ppg - min_ppg)
-        x_train['vpg'] = (x_train['vpg'] - min_vpg) / (max_vpg - min_vpg)
-        x_train['apg'] = (x_train['apg'] - min_apg) / (max_apg - min_apg)
+        data_train['signals']['ppg'] = (data_train['signals']['ppg'] - min_ppg) / (max_ppg - min_ppg)
+        data_train['signals']['vpg'] = (data_train['signals']['vpg'] - min_vpg) / (max_vpg - min_vpg)
+        data_train['signals']['apg'] = (data_train['signals']['apg'] - min_apg) / (max_apg - min_apg)
         # Normalize age
-        mean_age = np.nanmean(x_train['demographics'][:, 0])
-        std_age = np.nanstd(x_train['demographics'][:, 0])
-        x_train['demographics'][:, 0] = (x_train['demographics'][:, 0] - mean_age) / std_age
+        mean_age = np.nanmean(data_train['demographics']['age'])
+        std_age = np.nanstd(data_train['demographics']['age'])
+        data_train['demographics']['age'] = (data_train['demographics']['age'] - mean_age) / std_age
         # Normalized height, weight, and BMI, where NA is excluded
-        mean_height = np.nanmean(x_train['demographics'][:, 2])
-        mean_weight = np.nanmean(x_train['demographics'][:, 3])
-        mean_bmi = np.nanmean(x_train['demographics'][:, 4])
+        mean_height = np.nanmean(data_train['demographics']['height'])
+        mean_weight = np.nanmean(data_train['demographics']['weight'])
+        mean_bmi = np.nanmean(data_train['demographics']['bmi'])
 
-        std_height = np.nanstd(x_train['demographics'][:, 2])
-        std_weight = np.nanstd(x_train['demographics'][:, 3])
-        std_bmi = np.nanstd(x_train['demographics'][:, 4])
+        std_height = np.nanstd(data_train['demographics']['height'])
+        std_weight = np.nanstd(data_train['demographics']['weight'])
+        std_bmi = np.nanstd(data_train['demographics']['bmi'])
 
-        x_train['demographics'][:, 2] = (x_train['demographics'][:, 2] - mean_height) / std_height
-        x_train['demographics'][:, 3] = (x_train['demographics'][:, 3] - mean_weight) / std_weight
-        x_train['demographics'][:, 4] = (x_train['demographics'][:, 4] - mean_bmi) / std_bmi
+        data_train['demographics']['height'] = (data_train['demographics']['height'] - mean_height) / std_height
+        data_train['demographics']['weight']= (data_train['demographics']['weight'] - mean_weight) / std_weight
+        data_train['demographics']['bmi'] = (data_train['demographics']['bmi'] - mean_bmi) / std_bmi
 
         # Replace NaN with 0
-        x_train['demographics'][np.isnan(x_train['demographics'])] = 0
+        for key in data_train['demographics'].keys():
+            data_train['demographics'][key][np.isnan(data_train['demographics'][key])] = 0
 
         if OUTPUT_NORMALIZED:
-            y_train = np.array(y_train)
-            y_train[:, 0] = (y_train[:, 0] - min_sbp) / (max_sbp - min_sbp)
-            y_train[:, 1] = (y_train[:, 1] - min_dbp) / (max_dbp - min_dbp)
+            data_train['targets']['sbp'] = (data_train['targets']['sbp'] - min_sbp) / (max_sbp - min_sbp)
+            data_train['targets']['dbp'] = (data_train['targets']['dbp'] - min_dbp) / (max_dbp - min_dbp)
 
-        pickle.dump({'x': x_train, 'y': y_train}, open(os.path.join(FOLDED_DATASET_PATH, f'train_{fold_id}.pkl'), 'wb'))
+        pickle.dump(data_train, open(os.path.join(FOLDED_DATASET_PATH, f'train_{fold_id}.pkl'), 'wb'))
 
-        del x_train, y_train
+        del data_train
 
-        x_val['ppg'] = np.array(x_val['ppg'])
-        x_val['vpg'] = np.array(x_val['vpg'])
-        x_val['apg'] = np.array(x_val['apg'])
-        x_val['demographics'] = np.array(x_val['demographics'])
-        # Min-max Normalize PPG
-        x_val['ppg'] = (x_val['ppg'] - min_ppg) / (max_ppg - min_ppg)
-        x_val['vpg'] = (x_val['vpg'] - min_vpg) / (max_vpg - min_vpg)
-        x_val['apg'] = (x_val['apg'] - min_apg) / (max_apg - min_apg)
-        # Normalize age, height, weight, and BMI
-        x_val['demographics'][:, 0] = (x_val['demographics'][:, 0] - mean_age) / std_age
-        x_val['demographics'][:, 2] = (x_val['demographics'][:, 2] - mean_height) / std_height
-        x_val['demographics'][:, 3] = (x_val['demographics'][:, 3] - mean_weight) / std_weight
-        x_val['demographics'][:, 4] = (x_val['demographics'][:, 4] - mean_bmi) / std_bmi
+        # Convert to numpy arrays
+        for key in data_val['signals'].keys():
+            data_val['signals'][key] = np.array(data_val['signals'][key])
+        for key in data_val['demographics'].keys():
+            data_val['demographics'][key] = np.array(data_val['demographics'][key])
+        for key in data_val['targets'].keys():
+            data_val['targets'][key] = np.array(data_val['targets'][key])
+
+        # Min-max Normalize PPG, VPG, and APG
+        data_val['signals']['ppg'] = (data_val['signals']['ppg'] - min_ppg) / (max_ppg - min_ppg)
+        data_val['signals']['vpg'] = (data_val['signals']['vpg'] - min_vpg) / (max_vpg - min_vpg)
+        data_val['signals']['apg'] = (data_val['signals']['apg'] - min_apg) / (max_apg - min_apg)
+
+        # Normalize age
+        data_val['demographics']['age'] = (data_val['demographics']['age'] - mean_age) / std_age
+        # Normalized height, weight, and BMI, where NA is excluded
+        data_val['demographics']['height'] = (data_val['demographics']['height'] - mean_height) / std_height
+        data_val['demographics']['weight'] = (data_val['demographics']['weight'] - mean_weight) / std_weight
+        data_val['demographics']['bmi'] = (data_val['demographics']['bmi'] - mean_bmi) / std_bmi
+
         # Replace NaN with 0
-        x_val['demographics'][np.isnan(x_val['demographics'])] = 0
+        for key in data_val['demographics'].keys():
+            data_val['demographics'][key][np.isnan(data_val['demographics'][key])] = 0
 
         if OUTPUT_NORMALIZED:
-            y_val = np.array(y_val)
-            y_val[:, 0] = (y_val[:, 0] - min_sbp) / (max_sbp - min_sbp)
-            y_val[:, 1] = (y_val[:, 1] - min_dbp) / (max_dbp - min_dbp)
+            data_val['targets']['sbp'] = (data_val['targets']['sbp'] - min_sbp) / (max_sbp - min_sbp)
+            data_val['targets']['dbp'] = (data_val['targets']['dbp'] - min_dbp) / (max_dbp - min_dbp)
 
-        pickle.dump({'x': x_val, 'y': y_val}, open(os.path.join(FOLDED_DATASET_PATH, f'val_{fold_id}.pkl'), 'wb'))
+        pickle.dump(data_val, open(os.path.join(FOLDED_DATASET_PATH, f'val_{fold_id}.pkl'), 'wb'))
 
-        del x_val, y_val
+        del data_val
 
         pickle.dump({
             'min_ppg': min_ppg, 'max_ppg': max_ppg,

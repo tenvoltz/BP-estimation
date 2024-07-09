@@ -22,7 +22,9 @@ SIGNAL_LENGTH = int(os.getenv('SAMPLES_PER_SEGMENT'))
 SEED = int(os.getenv('SEED'))
 
 MATLAB_FIELD_NAME = 'Subset'
-def create_dataset(input_path, max_amount=100, dataset_type="Train"):
+def create_dataset(input_path, max_amount=-1, dataset_type="Train", ratios=None):
+    if ratios is None:
+        ratios = [1]
     if not os.path.isdir(SUBSETS_PATH):
         print('Subsets folder not found')
         return
@@ -31,17 +33,7 @@ def create_dataset(input_path, max_amount=100, dataset_type="Train"):
 
     print(f'############### Loading Data {dataset_type} ###############')
     data = loadmat(input_path)
-    if max_amount == -1: # Get all data
-        ppg_all = data[MATLAB_FIELD_NAME]['Signals'][:, 1, :]
-        sbps_all = data[MATLAB_FIELD_NAME]['SBP']
-        dbps_all = data[MATLAB_FIELD_NAME]['DBP']
-        age_all = data[MATLAB_FIELD_NAME]['Age']
-        gender_all = np.array(data[MATLAB_FIELD_NAME]['Gender']).squeeze()
-        height_all = data[MATLAB_FIELD_NAME]['Height']
-        weight_all = data[MATLAB_FIELD_NAME]['Weight']
-        bmi_all = data[MATLAB_FIELD_NAME]['BMI']
-
-
+    print(f'############### Data Loaded ###############')
     # Get the index of all subjects
     subjects = data[MATLAB_FIELD_NAME]['Subject']
     subjects_start = [0]
@@ -50,11 +42,12 @@ def create_dataset(input_path, max_amount=100, dataset_type="Train"):
             subjects_start.append(i)
     subjects_start.append(len(subjects))
 
-    if len(subjects) < max_amount:
+    if len(subjects) < max_amount or max_amount == -1:
         max_amount = len(subjects)
 
     del subjects
 
+    ecg_all = data[MATLAB_FIELD_NAME]['Signals'][:, 0, :]
     ppg_all = data[MATLAB_FIELD_NAME]['Signals'][:, 1, :]
     sbps_all = data[MATLAB_FIELD_NAME]['SBP']
     dbps_all = data[MATLAB_FIELD_NAME]['DBP']
@@ -64,13 +57,19 @@ def create_dataset(input_path, max_amount=100, dataset_type="Train"):
     weight_all = data[MATLAB_FIELD_NAME]['Weight']
     bmi_all = data[MATLAB_FIELD_NAME]['BMI']
 
-    print(f'############### Data Loaded ###############')
+    if max_amount == -1:
+        max_amount = len(ppg_all)
+    if ratios is None:
+        ratios = [1]
 
-    for ratio in PATIENT_SIGNAL_RATIO:
+    for ratio in ratios:
         print(f'############### Creating Dataset with ratio={ratio} ###############')
         if os.path.exists(os.path.join(DATASET_PATH, f'dataset_{max_amount}_{dataset_type}_{ratio}.hdf5')):
-            print(f'Dataset with ratio={ratio} already exists')
+            print(f'Dataset with amount={max_amount} ratio={ratio} already exists')
             continue
+        ecgs = []
+        vecgs = []
+        aecgs = []
         ppgs = []
         vpgs = []
         apgs = []
@@ -87,13 +86,15 @@ def create_dataset(input_path, max_amount=100, dataset_type="Train"):
             number_of_segments = (max_amount * TRAIN_TEST_SPLIT) // number_of_subjects
         else:
             number_of_segments = (max_amount * (1 - TRAIN_TEST_SPLIT)) // number_of_subjects
+        if ratio == 1:
+            number_of_segments = int(np.mean(np.diff(subjects_start)))
 
         dataset = []
 
         for i in tqdm(range(number_of_subjects), desc=f'Getting Data. Current Subject:'):
 
             start = int(subjects_start[i])
-            end = int(subjects_start[i] + number_of_segments)
+            end = int(subjects_start[i] + (number_of_segments if ratio != 1 else int(subjects_start[i+1])))
 
             if end > subjects_start[i+1]:
                 end = int(subjects_start[i+1])
@@ -105,6 +106,15 @@ def create_dataset(input_path, max_amount=100, dataset_type="Train"):
             ppgs.extend(ppg_temp)
             vpgs.extend(vpg_temp)
             apgs.extend(apg_temp)
+
+            ecg_temp = ecg_all[start:end]
+            vecg_temp = np.gradient(ecg_temp, axis=1)
+            aecg_temp = np.gradient(vecg_temp, axis=1)
+
+            ecgs.extend(ecg_temp)
+            vecgs.extend(vecg_temp)
+            aecgs.extend(aecg_temp)
+
             sbps.extend(sbps_all[start:end])
             dbps.extend(dbps_all[start:end])
             age.extend(age_all[start:end])
@@ -122,12 +132,16 @@ def create_dataset(input_path, max_amount=100, dataset_type="Train"):
         gender = np.where(np.array(gender) == 'M', 1, -1)
 
         # Shuffle the dataset
-        dataset = np.concatenate((ppgs, vpgs, apgs, np.stack((age, gender, height, weight, bmi, sbps, dbps), axis=1)), axis=1)
+        dataset = np.concatenate((ecgs, vecgs, aecgs, ppgs, vpgs, apgs,
+                                  np.stack((age, gender, height, weight, bmi, sbps, dbps), axis=1)), axis=1)
         np.random.seed(SEED)
         np.random.shuffle(dataset)
 
         f = h5py.File(os.path.join(DATASET_PATH, f'dataset_{max_amount}_{dataset_type}_{ratio}.hdf5'), 'w')
         signal_group = f.create_group('signals')
+        signal_group['ecg'] = dataset[:, :SIGNAL_LENGTH]
+        signal_group['vecg'] = dataset[:, SIGNAL_LENGTH:2 * SIGNAL_LENGTH]
+        signal_group['aecg'] = dataset[:, 2 * SIGNAL_LENGTH:3 * SIGNAL_LENGTH]
         signal_group['ppg'] = dataset[:, :SIGNAL_LENGTH]
         signal_group['vpg'] = dataset[:, SIGNAL_LENGTH:2 * SIGNAL_LENGTH]
         signal_group['apg'] = dataset[:, 2 * SIGNAL_LENGTH:3 * SIGNAL_LENGTH]
@@ -144,7 +158,6 @@ def create_dataset(input_path, max_amount=100, dataset_type="Train"):
 if __name__ == '__main__':
     #for file in os.listdir(SUBSETS_PATH):
     #    if file.endswith(".mat"):
-            file = 'Train_Subset.mat'
+            file = 'AAMI_Cal_Subset.mat'
             create_dataset(os.path.join(SUBSETS_PATH, file),
-                           max_amount=MAX_DATASET_SIZE,
                            dataset_type=file.split('_')[0])

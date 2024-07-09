@@ -10,7 +10,87 @@ DATA_PATH = os.getenv('DATA_PATH')
 DATASET_NAME = os.getenv('DATASET_NAME')
 load_dotenv(os.path.join(DATA_PATH, DATASET_NAME, '.env'))
 
-SIGNAL_LENGTH = int(os.getenv('SAMPLES_PER_SEGMENT'))
+SIGNAL_LENGTH = int(os.getenv('INPUT_LENGTH'))
+
+class SimpleAttention(nn.Module):
+    def __init__(self, sequence_length, dropout=None):
+        super().__init__()
+        self.scaling = sequence_length
+        self.dropout = nn.Dropout(p=dropout) if dropout is not None else None
+
+    def forward(self, Q, K, V, mask=None):
+        # Galerkin attention - per Cao et al.
+        scores = torch.matmul(K.transpose(-2, -1), V)
+        if mask is not None:
+            print("No mask support for simple attention")
+        probs = scores / self.scaling
+        if self.dropout is not None:
+            probs = self.dropout(probs)
+        return torch.matmul(Q, probs), probs
+class SimpleMultiHeadedAttention(nn.Module):
+    def __init__(self, sequence_length, head_amount, embedding_size, bias=False, dropout=0.1):
+        super().__init__()
+        assert embedding_size % head_amount == 0
+
+        # We assume key_dim == value_dim == query_dim
+        self.embedding_size = embedding_size
+        self.key_size = embedding_size // head_amount
+        self.head_amount = head_amount
+
+        # K/Q/V linear transformations
+        self.query_linear = nn.Linear(embedding_size, embedding_size, bias=bias)
+        self.key_linear = nn.Linear(embedding_size, embedding_size, bias=bias)
+        self.value_linear = nn.Linear(embedding_size, embedding_size, bias=bias)
+
+        self.key_norm = nn.LayerNorm(embedding_size)
+        self.value_norm = nn.LayerNorm(embedding_size)
+
+        self.output_linear = nn.Linear(embedding_size, embedding_size)
+        self.attention = SimpleAttention(sequence_length, dropout=dropout)
+
+    def forward(self, query, key, value, mask=None):
+        query_embedding = self.split_embedding(self.query_linear(query))
+        key_embedding = self.split_embedding(self.key_norm(self.key_linear(key)))
+        value_embedding = self.split_embedding(self.value_norm(self.value_linear(value)))
+
+        X, _ = self.attention(query_embedding, key_embedding, value_embedding, mask=mask)
+
+        return self.output_linear(self.combine_embedding(X))
+
+    def split_embedding(self, x):
+        batch_size, qkv_amount, _ = x.size()
+        x = x.view(batch_size, qkv_amount, self.head_amount, self.key_size)
+        return x.transpose(1, 2)
+
+    def combine_embedding(self, x):
+        batch_size, _, qkv_amount, _ = x.size()
+        return x.transpose(1, 2).contiguous().view(batch_size, qkv_amount, self.head_amount * self.key_size)
+class SimpleTransformerEncoderBlock(nn.Module):
+    def __init__(self, sequence_length, head_amount, embedding_size, dropout=0.1):
+        super(SimpleTransformerEncoderBlock, self).__init__()
+
+        self.self_attention = SimpleMultiHeadedAttention(sequence_length, head_amount, embedding_size, dropout=dropout)
+        self.feed_forward = PositionwiseFeedForward(embedding_size, feature_size=embedding_size, dropout=dropout)
+
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+    def forward(self, X, mask=None):
+        X = X + self.dropout1(self.self_attention(X, X, X, mask=mask))
+        X = X + self.dropout2(self.feed_forward(X))
+        return X
+class SimpleTransformerEncoder(nn.Module):
+    def __init__(self, sequence_length=512, head_amount=8, embedding_size=128, layer_amount=6, dropout=0.1):
+        super(SimpleTransformerEncoder, self).__init__()
+        self.position = PositionalEncoding(embedding_size, dropout=dropout)
+        self.layers = nn.ModuleList([SimpleTransformerEncoderBlock(sequence_length, head_amount, embedding_size, dropout)
+                                     for _ in range(layer_amount)])
+
+    def forward(self, X, mask=None):
+        X = self.position(X)
+        for layer in self.layers:
+            X = layer(X, mask=mask)
+        return X
 class Attention(nn.Module):
     def __init__(self, key_size, dropout=None):
         super().__init__()
@@ -129,7 +209,7 @@ class TransformerEncoder(nn.Module):
         return X
 
 if __name__ == "__main__":
-    bert = TransformerEncoder()
+    bert = SimpleTransformerEncoder()
     input = torch.FloatTensor(torch.randn(19,100,128))
     X = bert(input)
     print(X.shape)

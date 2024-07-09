@@ -5,22 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b97da8ca-1c4d-4aeb-832d-7ad58f650c8a" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/Scripts/Models/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Scripts/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Scripts/model_pipeline.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/playground.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Scripts/data_loader.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Scripts/helper.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/analyze_data.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/PulseDB/Datasets/analyze_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/PulseDB/Datasets/analyze_data.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/PulseDB/Datasets/create_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/PulseDB/Datasets/create_dataset.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/PulseDB/Datasets/split_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/PulseDB/Datasets/split_data.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/UCI/Datasets/analyze_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/UCI/Datasets/analyze_data.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/UCI/Datasets/create_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/UCI/Datasets/create_dataset.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/UCI/Datasets/process_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/UCI/Datasets/process_data.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/UCI/Datasets/split_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/UCI/Datasets/split_data.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/Models/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/Models/transformer.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/transformer.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/evaluate_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/evaluate_model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/metrics.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/metrics.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/playground.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/process_data.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/split_data.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/model_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/model_pipeline.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/train_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/train_model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/transformer.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/transformer.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -66,6 +65,7 @@
     "Python.create_dataset (1).executor": "Run",
     "Python.create_dataset (2).executor": "Run",
     "Python.create_dataset.executor": "Run",
+    "Python.data_loader.executor": "Run",
     "Python.evaluate_model.executor": "Run",
     "Python.flattenImage.executor": "Run",
     "Python.metrics.executor": "Run",
@@ -91,11 +91,11 @@
       <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Scripts\Datasets" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\Rafita\Folded_Data\AllData" />
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\PulseDB\Datasets" />
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI" />
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\PulseBP" />
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\PulseBP\Info_Files" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\segmented_data\Original500" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\segmented_data\sbps" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\segmented_data\ppgs" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\segmented_data\dbps" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\segmented_data\ButterFilt" />
     </key>
   </component>
   <component name="RunManager" selected="Python.model_pipeline">
@@ -132,7 +132,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="create_dataset" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="analyze_data" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="BP-estimation" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -142,7 +142,7 @@
       </envs>
       <option name="SDK_HOME" value="" />
       <option name="SDK_NAME" value="MachineLearning" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Data/Rafita/Dataset" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Data/UCI/Datasets" />
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
@@ -156,40 +156,7 @@
           <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
         </ENTRIES>
       </EXTENSION>
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Data/Rafita/Dataset/create_dataset.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="evaluate_model" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="BP-estimation" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="SDK_NAME" value="MachineLearning" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Scripts" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="net.ashald.envfile">
-        <option name="IS_ENABLED" value="true" />
-        <option name="IS_SUBST" value="false" />
-        <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
-        <option name="IS_IGNORE_MISSING_FILES" value="false" />
-        <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
-        <ENTRIES>
-          <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
-        </ENTRIES>
-      </EXTENSION>
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Scripts/evaluate_model.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Data/UCI/Datasets/analyze_data.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -263,7 +230,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="split_data (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="process_data" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="BP-estimation" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -273,7 +240,7 @@
       </envs>
       <option name="SDK_HOME" value="" />
       <option name="SDK_NAME" value="MachineLearning" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Data/Rafita/Dataset" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Data/UCI/Datasets" />
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
@@ -287,7 +254,40 @@
           <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
         </ENTRIES>
       </EXTENSION>
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Data/Rafita/Dataset/split_data.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Data/UCI/Datasets/process_data.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="transformer" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="BP-estimation" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="SDK_NAME" value="MachineLearning" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Scripts/Models" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="net.ashald.envfile">
+        <option name="IS_ENABLED" value="true" />
+        <option name="IS_SUBST" value="false" />
+        <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
+        <option name="IS_IGNORE_MISSING_FILES" value="false" />
+        <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
+        <ENTRIES>
+          <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
+        </ENTRIES>
+      </EXTENSION>
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Scripts/Models/transformer.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -297,19 +297,19 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.create_dataset" />
-      <item itemvalue="Python.evaluate_model" />
-      <item itemvalue="Python.split_data (1)" />
+      <item itemvalue="Python.analyze_data" />
+      <item itemvalue="Python.process_data" />
+      <item itemvalue="Python.transformer" />
       <item itemvalue="Python.model_pipeline" />
       <item itemvalue="Python.models" />
     </list>
     <recent_temporary>
       <list>
         <item itemvalue="Python.model_pipeline" />
+        <item itemvalue="Python.analyze_data" />
+        <item itemvalue="Python.transformer" />
         <item itemvalue="Python.models" />
-        <item itemvalue="Python.evaluate_model" />
-        <item itemvalue="Python.split_data (1)" />
-        <item itemvalue="Python.create_dataset" />
+        <item itemvalue="Python.process_data" />
       </list>
     </recent_temporary>
   </component>

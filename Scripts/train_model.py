@@ -8,6 +8,8 @@ import torch.nn as nn
 import numpy as np
 
 from Models import models
+from helper import *
+from data_loader import *
 
 load_dotenv()
 DATA_PATH = os.getenv('DATA_PATH')
@@ -19,11 +21,13 @@ FOLD_AMOUNT = int(os.getenv('FOLD_AMOUNT'))
 
 OUTPUTS_PATH = os.getenv('OUTPUTS_PATH')
 MODEL = os.getenv('MODEL')
+PARALLEL_BRANCH_ALPHA = float(os.getenv('PARALLEL_BRANCH_ALPHA'))
 
 LEARNING_RATE = float(os.getenv('LEARNING_RATE'))
 WEIGHT_DECAY = float(os.getenv('WEIGHT_DECAY'))
 BATCH_SIZE = int(os.getenv('BATCH_SIZE'))
 EPOCHS = int(os.getenv('EPOCHS'))
+HUBER_LOSS_DELTA = float(os.getenv('HUBER_LOSS_DELTA'))
 
 EARLY_STOPPING = os.getenv('EARLY_STOPPING').lower() == 'true'
 EARLY_STOPPING_PATIENCE = int(os.getenv('EARLY_STOPPING_PATIENCE'))
@@ -34,10 +38,13 @@ LR_SCHEDULER_FACTOR = float(os.getenv('LR_SCHEDULER_FACTOR'))
 SEED = int(os.getenv('SEED'))
 IS_CUDA = torch.cuda.is_available() and torch.backends.cudnn.enabled and os.getenv('CUDA').lower() == 'true'
 
-SIGNAL_AMOUNT = int(os.getenv('SIGNAL_AMOUNT'))
-SIGNAL_LENGTH = int(os.getenv('SAMPLES_PER_SEGMENT'))
+SIGNALS_LIST = [signal.strip().lower() for signal in os.getenv('SIGNALS').split(',')]
+DEMOGRAPHICS_LIST = [demographic.strip().lower() for demographic in os.getenv('DEMOGRAPHICS').split(',')] \
+    if os.getenv('DEMOGRAPHICS') is not None else None
+TARGETS_LIST = [target.strip().lower() for target in os.getenv('TARGETS').split(',')]
+SIGNAL_LENGTH = int(os.getenv('INPUT_LENGTH'))
 
-OUTPUT_TASK = os.getenv('OUTPUT_TASK').lower()
+OUTPUT_NORMALIZED = os.getenv('OUTPUT_NORMALIZED').lower() == 'true'
 
 def train_model(outputs_path=OUTPUTS_PATH, writer=None):
     if not os.path.exists(outputs_path):
@@ -45,77 +52,69 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
     if not os.path.exists(os.path.join(outputs_path, 'Models')):
         os.makedirs(os.path.join(outputs_path, 'Models'))
 
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
-    if IS_CUDA:
-        torch.cuda.manual_seed(SEED)
-        torch.backends.cudnn.benchmark = True
-        print("Using GPU")
-    else:
-        print("Using CPU")
+    set_all_seeds(SEED, IS_CUDA)
+    print("Using GPU" if IS_CUDA else "Using CPU")
 
     # Keep track of the best fold
     best_fold_loss = float('inf')
-    best_fold_accuracy = 0 # For classification
     best_fold_id = 0
-
-
 
     for fold_id in range(FOLD_AMOUNT):
         print(f"########################## Training model for fold {fold_id} ##########################")
-
-        data = pickle.load(open(os.path.join(FOLDED_DATASET_PATH, f'train_{fold_id}.pkl'), 'rb'))
-        x_train = data['x']
-        y_train = data['y']
-        data = pickle.load(open(os.path.join(FOLDED_DATASET_PATH, f'val_{fold_id}.pkl'), 'rb'))
-        x_val = data['x']
-        y_val = data['y']
-
+        data = pickle.load(open(os.path.join(FOLDED_DATASET_PATH, f'stats_{fold_id}.pkl'), 'rb'))
+        mean_sbp = data['mean_sbp']
+        mean_dbp = data['mean_dbp']
+        if OUTPUT_NORMALIZED:
+            min_sbp = data['min_sbp']
+            max_sbp = data['max_sbp']
+            min_dbp = data['min_dbp']
+            max_dbp = data['max_dbp']
         if DATASET_NAME == 'PulseDB':
-            if SIGNAL_AMOUNT == 1:
-                x_train = x_train['ppg']
-                x_val = x_val['ppg']
-            elif SIGNAL_AMOUNT == 2:
-                x_train = np.concatenate((x_train['ppg'], x_train['vpg']), axis=1)
-                x_val = np.concatenate((x_val['ppg'], x_val['vpg']), axis=1)
-            elif SIGNAL_AMOUNT == 3:
-                x_train = np.concatenate((x_train['ppg'], x_train['vpg'], x_train['apg']), axis=1)
-                x_val = np.concatenate((x_val['ppg'], x_val['vpg'], x_val['apg']), axis=1)
-            else:
-                raise ValueError("Invalid signal amount")
-        # Cut the signal length
-        x_train = x_train[:, :, :SIGNAL_LENGTH]
-        x_val = x_val[:, :, :SIGNAL_LENGTH]
-
-        x_train = torch.tensor(x_train, dtype=torch.float32)
-        y_train = torch.tensor(y_train, dtype=torch.float32)
-        x_val = torch.tensor(x_val, dtype=torch.float32)
-        y_val = torch.tensor(y_val, dtype=torch.float32)
-
-        train_dataset = Data.TensorDataset(x_train, y_train)
-        val_dataset = Data.TensorDataset(x_val, y_val)
-
+            transform = transforms.Compose([Trim(SIGNAL_LENGTH, TrimMethod.START), Tensorize()])
+            train_dataset = PulseDBDataset(os.path.join(FOLDED_DATASET_PATH, f'train_{fold_id}.pkl'),
+                                          signals=SIGNALS_LIST,
+                                          demographics=DEMOGRAPHICS_LIST,
+                                          targets=TARGETS_LIST,
+                                          transform=transform)
+            val_dataset = PulseDBDataset(os.path.join(FOLDED_DATASET_PATH, f'val_{fold_id}.pkl'),
+                                        signals=SIGNALS_LIST,
+                                        demographics=DEMOGRAPHICS_LIST,
+                                        targets=TARGETS_LIST,
+                                        transform=transform)
+        elif DATASET_NAME == 'UCI':
+            transform = transforms.Compose([Tensorize()])
+            train_dataset = UCIDataset(os.path.join(FOLDED_DATASET_PATH, f'train_{fold_id}.pkl'),
+                                      signals=SIGNALS_LIST,
+                                      targets=TARGETS_LIST,
+                                      transform=transform)
+            val_dataset = UCIDataset(os.path.join(FOLDED_DATASET_PATH, f'val_{fold_id}.pkl'),
+                                    signals=SIGNALS_LIST,
+                                    targets=TARGETS_LIST,
+                                    transform=transform)
+        else:
+            raise ValueError(f'Unknown dataset name: {DATASET_NAME}')
         train_loader = Data.DataLoader(
             dataset=train_dataset,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            num_workers=0,      #2,
+            num_workers=0,
             pin_memory=IS_CUDA  # Pytorch Recommendation
         )
         val_loader = Data.DataLoader(
             dataset=val_dataset,
             batch_size=BATCH_SIZE,
             shuffle=False,
-            num_workers=0,      # 2,
+            num_workers=0,
             pin_memory=IS_CUDA  # Pytorch Recommendation
         )
 
         # Define the model
-        model = getattr(models, MODEL)().cuda() if IS_CUDA else getattr(models, MODEL)()
-        if OUTPUT_TASK == 'classification':
-            loss_fn = nn.BCEWithLogitsLoss().cuda() if IS_CUDA else nn.BCEWithLogitsLoss()
+        if MODEL == 'Transformer_Only':
+            model = models.Transformer_Only(bias_init=torch.tensor([mean_sbp, mean_dbp]), alpha=PARALLEL_BRANCH_ALPHA).cuda() if IS_CUDA \
+                else models.Transformer_Only(bias_init=torch.tensor([mean_sbp, mean_dbp]), alpha=PARALLEL_BRANCH_ALPHA)
         else:
-            loss_fn = nn.MSELoss().cuda() if IS_CUDA else nn.MSELoss()
+            model = getattr(models, MODEL)().cuda() if IS_CUDA else getattr(models, MODEL)()
+        loss_fn = nn.HuberLoss(delta=HUBER_LOSS_DELTA).cuda() if IS_CUDA else nn.HuberLoss(delta=HUBER_LOSS_DELTA)
         optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
                                                                factor=LR_SCHEDULER_FACTOR,
@@ -123,106 +122,83 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
 
         # Early stopping
         best_loss = float('inf')
-        best_accuracy = 0 # For classification
         patience = EARLY_STOPPING_PATIENCE
 
-        best_train_accuracy = 0 # For classification
         # Train the model
         for epoch in tqdm(range(EPOCHS), desc=f'Fold {fold_id} - Training Epochs'):
             model.train()
+            train_loss = 0
             train_mse = 0
-            correct = 0  # For classification
-            accuracy = 0  # For classification
-            for x_batch, y_batch in tqdm(train_loader, f'Fold {fold_id} Epoch {epoch} - Training'):
+            train_mae = 0
+            for batch in tqdm(train_loader, f'Fold {fold_id} Epoch {epoch} - Training'):
                 if IS_CUDA:
-                    x_batch, y_batch = x_batch.cuda(), y_batch.cuda()
-
+                    for key in batch['inputs']:
+                        batch['inputs'][key] = batch['inputs'][key].cuda()
+                    batch['targets'] = batch['targets'].cuda()
                 # Zero the gradients (Optimization suggested by PyTorch)
                 for param in model.parameters():
                     param.grad = None
+                y_pred = model(batch['inputs'])                 # Forward pass
+                loss = loss_fn(y_pred, batch['targets'])        # Compute the loss
+                loss.backward()                                 # Backward pass
+                optimizer.step()                                # Update the weights
+                with torch.no_grad():
+                    train_loss += loss.item() * len(batch['targets'])
+                    train_mse += torch.sum((y_pred - batch['targets']) ** 2).item()
+                    train_mae += torch.sum(torch.abs(y_pred - batch['targets'])).item()
 
-                y_pred = model(x_batch)             # Forward pass
-                if OUTPUT_TASK == 'classification':
-                    y_pred = y_pred.squeeze(1)
-                loss = loss_fn(y_pred, y_batch)     # Compute the loss
-                loss.backward()                     # Backward pass
-                optimizer.step()                    # Update the weights
+            train_loss /= len(train_loader)
 
-                train_mse += loss.item()
-                if OUTPUT_TASK == 'classification':
-                    predicted = (torch.sigmoid(y_pred) >= 0.5).long()
-                    correct += (predicted == y_batch).sum().item()
-            if OUTPUT_TASK == 'classification':
-                accuracy = correct / len(train_loader.dataset) * 100.0
+            train_mae /= len(train_loader.dataset)
+            train_mse /= len(train_loader.dataset)
 
-            train_mse /= len(train_loader)
             if writer is not None:
-                writer.add_scalar(f'{MODEL}/{fold_id}/MSE/Train', train_mse, epoch)
-                if OUTPUT_TASK == 'classification':
-                    writer.add_scalar(f'{MODEL}/{fold_id}/Accuracy', accuracy, epoch)
-
-            if OUTPUT_TASK == 'classification':
-                if accuracy >= best_train_accuracy:
-                    best_train_accuracy = accuracy
-                    torch.save(model.state_dict(), os.path.join(outputs_path, 'Models', f'{MODEL}_{fold_id}.pt'))
+                writer.add_scalar(f'{MODEL}/{fold_id}/Loss/Train', train_mse, epoch)
+                writer.add_scalar(f'{MODEL}/{fold_id}/MSE/Train', train_loss, epoch)
+                writer.add_scalar(f'{MODEL}/{fold_id}/MAE/Train', train_mae, epoch)
 
             if FOLD_AMOUNT != 1:
+                # If we are doing cross-validation
                 model.eval()
+                eval_loss = 0
                 eval_mse = 0
-                correct = 0 # For classification
-                accuracy = 0 # For classification
+                eval_mae = 0
                 with torch.no_grad():
-                    for x_batch, y_batch in tqdm(val_loader, f'Fold {fold_id} Epoch {epoch} - Validation'):
+                    for batch in tqdm(val_loader, f'Fold {fold_id} Epoch {epoch} - Validation'):
                         if IS_CUDA:
-                            x_batch, y_batch = x_batch.cuda(), y_batch.cuda()
+                            for key in batch['inputs']:
+                                batch['inputs'][key] = batch['inputs'][key].cuda()
+                            batch['targets'] = batch['targets'].cuda()
+                        y_pred = model(batch['inputs'])
+                        eval_loss += loss_fn(y_pred, batch['targets']).item()
+                        eval_mse += torch.sum((y_pred - batch['targets']) ** 2).item()
+                        eval_mae += torch.sum(torch.abs(y_pred - batch['targets'])).item()
 
-                        y_pred = model(x_batch)
-                        if OUTPUT_TASK == 'classification':
-                            y_pred = y_pred.squeeze(1)
-                        eval_mse += loss_fn(y_pred, y_batch).item()
+                eval_mse /= len(val_loader.dataset)
+                eval_mae /= len(val_loader.dataset)
 
-                        if OUTPUT_TASK == 'classification':
-                            predicted = (torch.sigmoid(y_pred) >= 0.5).long()
-                            correct += (predicted == y_batch).sum().item()
-
-                eval_mse /= len(val_loader)
-                if OUTPUT_TASK == 'classification':
-                    accuracy = correct / len(val_loader.dataset) * 100.0
+                eval_loss /= len(val_loader)
                 scheduler.step(eval_mse)
 
                 if writer is not None:
-                    writer.add_scalar(f'{MODEL}/{fold_id}/MSE/Validation', eval_mse, epoch)
-                    if OUTPUT_TASK == 'classification':
-                        writer.add_scalar(f'{MODEL}/{fold_id}/Accuracy', accuracy, epoch)
+                    writer.add_scalar(f'{MODEL}/{fold_id}/Loss/Validation', eval_mse, epoch)
+                    writer.add_scalar(f'{MODEL}/{fold_id}/MSE/Validation', eval_loss, epoch)
+                    writer.add_scalar(f'{MODEL}/{fold_id}/MAE/Validation', eval_mae, epoch)
 
-                if OUTPUT_TASK == 'classification':
-                    if accuracy > best_fold_accuracy:
-                        best_fold_id = fold_id
-                        best_fold_accuracy = accuracy
-                    if accuracy > best_accuracy:
-                        best_accuracy = accuracy
-                        torch.save(model.state_dict(), os.path.join(outputs_path, 'Models', f'{MODEL}_{fold_id}.pt'))
-                        patience = EARLY_STOPPING_PATIENCE
-                    elif EARLY_STOPPING:
-                        patience -= 1
-                        if patience == 0:
-                            print(f"Early stopping at epoch {epoch}")
-                            break
-                else:
-                    if eval_mse < best_fold_loss:
-                        best_fold_id = fold_id
-                        best_fold_loss = eval_mse
-                    if eval_mse < best_loss:
-                        best_loss = eval_mse
-                        torch.save(model.state_dict(), os.path.join(outputs_path, 'Models', f'{MODEL}_{fold_id}.pt'))
-                        patience = EARLY_STOPPING_PATIENCE  # Reset patience counter
-                    elif EARLY_STOPPING:
-                        patience -= 1
-                        if patience == 0:
-                            print(f"Early stopping at epoch {epoch}")
-                            break
+                if eval_loss < best_fold_loss:
+                    best_fold_id = fold_id
+                    best_fold_loss = eval_loss
+                if eval_loss < best_loss:
+                    best_loss = eval_loss
+                    torch.save(model.state_dict(), os.path.join(outputs_path, 'Models', f'{MODEL}_{fold_id}.pt'))
+                    patience = EARLY_STOPPING_PATIENCE  # Reset patience counter
+                elif EARLY_STOPPING:
+                    patience -= 1
+                    if patience == 0:
+                        print(f"Early stopping at epoch {epoch}")
+                        break
 
-            del x_batch, y_batch, y_pred
+            del batch, y_pred
             if IS_CUDA:
                 torch.cuda.empty_cache()
 

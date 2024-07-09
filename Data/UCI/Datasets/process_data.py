@@ -4,11 +4,12 @@ from tqdm import tqdm
 import pickle
 import numpy as np
 from dotenv import load_dotenv
+import scipy.signal as signal
+import pywt
 
 load_dotenv()
-DATA_PATH = os.getenv('DATA_PATH')
-DATASET_NAME = os.getenv('DATASET_NAME')
-load_dotenv(os.path.join(DATA_PATH, DATASET_NAME, '.env'))
+ENV_PATH = os.getenv('ENV_PATH')
+load_dotenv(os.path.join(ENV_PATH))
 
 RAW_DATA_PATH = os.getenv('RAW_DATA_PATH')
 SEGMENTED_DATA_PATH = os.getenv('SEGMENTED_DATA_PATH')
@@ -18,6 +19,43 @@ SAMPLES_PER_SEGMENT = int(os.getenv('SAMPLES_PER_SEGMENT'))
 SAMPLES_PER_STRIDE = int(os.getenv('SAMPLES_PER_STRIDE'))
 
 MAX_PROCESSED = int(os.getenv('MAX_SEGMENTED_INSTANCES'))
+
+def calc_baseline(signal):
+    """
+    Retrieved: https://github.com/spebern/py-bwr/blob/master/bwr.py#L5C1-L39C35
+    Calculate the baseline of signal.
+
+    Args:
+        signal (numpy 1d array): signal whose baseline should be calculated
+
+
+    Returns:
+        baseline (numpy 1d array with same size as signal): baseline of the signal
+    """
+    ssds = np.zeros((3))
+
+    cur_lp = np.copy(signal)
+    iterations = 0
+    while True:
+        # Decompose 1 level
+        lp, hp = pywt.dwt(cur_lp, "db4")
+
+        # Shift and calculate the energy of detail/high pass coefficient
+        ssds = np.concatenate(([np.sum(hp ** 2)], ssds[:-1]))
+
+        # Check if we are in the local minimum of energy function of high-pass signal
+        if ssds[2] > ssds[1] and ssds[1] < ssds[0]:
+            break
+
+        cur_lp = lp[:]
+        iterations += 1
+
+    # Reconstruct the baseline from this level low pass signal up to the original length
+    baseline = cur_lp[:]
+    for _ in range(iterations):
+        baseline = pywt.idwt(baseline, np.zeros((len(baseline))), "db4")
+
+    return baseline[: len(signal)]
 
 # Signal enum
 class Signal:
@@ -38,6 +76,7 @@ def process_data(max_processed = 1000):
         os.mkdir(os.path.join(SEGMENTED_DATA_PATH, 'dbps'))
 
     current_processed = 0
+    b, a = signal.butter(N=4, Wn=[0.5, 8], btype='bandpass', fs=fs)
     for file_id in range(1, 5):   # 4 data files
         print(f'Processing file {file_id} out of 4')
 
@@ -71,7 +110,11 @@ def process_data(max_processed = 1000):
             dbp_segments = []
 
             for j in tqdm(range(0, len(ppg) - SAMPLES_PER_SEGMENT, SAMPLES_PER_STRIDE), desc=f'Segmenting Record {record_id}/{record_amount}'):
-                ppg_segments.append(ppg[j:j + SAMPLES_PER_SEGMENT])
+                temp_ppg = ppg[j:j + SAMPLES_PER_SEGMENT]
+                temp_ppg = signal.filtfilt(b, a, temp_ppg)
+                baseline = calc_baseline(temp_ppg)
+                temp_ppg = temp_ppg - baseline
+                ppg_segments.append(temp_ppg)
                 sbp_segments.append(max(abp[j:j + SAMPLES_PER_SEGMENT]))
                 dbp_segments.append(min(abp[j:j + SAMPLES_PER_SEGMENT]))
 
