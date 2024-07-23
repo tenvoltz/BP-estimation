@@ -8,7 +8,7 @@ def mean_difference(y_true, y_pred):
     return np.mean(y_true - y_pred)
 
 def std_difference(y_true, y_pred):
-    return np.std(y_true - y_pred)
+    return np.std(y_true - y_pred, ddof=1)
 
 def percentage_MAD(y_true, y_pred):
     leq5 = 0

@@ -21,7 +21,7 @@ FOLD_AMOUNT = int(os.getenv('FOLD_AMOUNT'))
 
 OUTPUTS_PATH = os.getenv('OUTPUTS_PATH')
 MODEL = os.getenv('MODEL')
-PARALLEL_BRANCH_ALPHA = float(os.getenv('PARALLEL_BRANCH_ALPHA'))
+BIAS_INIT = os.getenv('BIAS_INIT').lower() == 'true'
 
 LEARNING_RATE = float(os.getenv('LEARNING_RATE'))
 WEIGHT_DECAY = float(os.getenv('WEIGHT_DECAY'))
@@ -46,6 +46,8 @@ SIGNAL_LENGTH = int(os.getenv('INPUT_LENGTH'))
 
 OUTPUT_NORMALIZED = os.getenv('OUTPUT_NORMALIZED').lower() == 'true'
 
+USED_FOLD_AMOUNT = int(os.getenv('USED_FOLD_AMOUNT'))
+
 def train_model(outputs_path=OUTPUTS_PATH, writer=None):
     if not os.path.exists(outputs_path):
         os.makedirs(outputs_path)
@@ -59,7 +61,7 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
     best_fold_loss = float('inf')
     best_fold_id = 0
 
-    for fold_id in range(FOLD_AMOUNT):
+    for fold_id in range(USED_FOLD_AMOUNT):
         print(f"########################## Training model for fold {fold_id} ##########################")
         data = pickle.load(open(os.path.join(FOLDED_DATASET_PATH, f'stats_{fold_id}.pkl'), 'rb'))
         mean_sbp = data['mean_sbp']
@@ -109,16 +111,16 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
         )
 
         # Define the model
-        if MODEL == 'Transformer_Only':
-            model = models.Transformer_Only(bias_init=torch.tensor([mean_sbp, mean_dbp]), alpha=PARALLEL_BRANCH_ALPHA).cuda() if IS_CUDA \
-                else models.Transformer_Only(bias_init=torch.tensor([mean_sbp, mean_dbp]), alpha=PARALLEL_BRANCH_ALPHA)
+        if BIAS_INIT:
+            model = getattr(models, MODEL)(bias_init=torch.tensor([mean_sbp, mean_dbp])).cuda() if IS_CUDA \
+                else getattr(models, MODEL)(bias_init=torch.tensor([mean_sbp, mean_dbp]))
         else:
             model = getattr(models, MODEL)().cuda() if IS_CUDA else getattr(models, MODEL)()
-        loss_fn = nn.HuberLoss(delta=HUBER_LOSS_DELTA).cuda() if IS_CUDA else nn.HuberLoss(delta=HUBER_LOSS_DELTA)
-        optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
-                                                               factor=LR_SCHEDULER_FACTOR,
-                                                               patience=LR_SCHEDULER_PATIENCE)
+        loss_fn = nn.L1Loss().cuda() if IS_CUDA else nn.L1Loss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+        #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
+        #                                                      factor=LR_SCHEDULER_FACTOR,
+        #                                                       patience=LR_SCHEDULER_PATIENCE)
 
         # Early stopping
         best_loss = float('inf')
@@ -130,7 +132,7 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
             train_loss = 0
             train_mse = 0
             train_mae = 0
-            for batch in tqdm(train_loader, f'Fold {fold_id} Epoch {epoch} - Training'):
+            for batch_idx, batch in enumerate(tqdm(train_loader, f'Fold {fold_id} Epoch {epoch} - Training')):
                 if IS_CUDA:
                     for key in batch['inputs']:
                         batch['inputs'][key] = batch['inputs'][key].cuda()
@@ -141,20 +143,29 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
                 y_pred = model(batch['inputs'])                 # Forward pass
                 loss = loss_fn(y_pred, batch['targets'])        # Compute the loss
                 loss.backward()                                 # Backward pass
+
+                if batch_idx == 0: # Start of batch
+                    gradient_norm_dict = {}
+                    for name, param in model.named_parameters():
+                        if param.grad is not None:
+                            gradient_norm_dict[name] = param.grad.detach().norm().item()
+                    if writer is not None:
+                        for name, norm in gradient_norm_dict.items():
+                            writer.add_scalar(f'{MODEL}/{fold_id}/Gradient Norm/{name}', norm, epoch)
+
                 optimizer.step()                                # Update the weights
                 with torch.no_grad():
                     train_loss += loss.item() * len(batch['targets'])
                     train_mse += torch.sum((y_pred - batch['targets']) ** 2).item()
                     train_mae += torch.sum(torch.abs(y_pred - batch['targets'])).item()
 
-            train_loss /= len(train_loader)
-
+            train_loss /= len(train_loader.dataset)
             train_mae /= len(train_loader.dataset)
             train_mse /= len(train_loader.dataset)
 
             if writer is not None:
-                writer.add_scalar(f'{MODEL}/{fold_id}/Loss/Train', train_mse, epoch)
-                writer.add_scalar(f'{MODEL}/{fold_id}/MSE/Train', train_loss, epoch)
+                writer.add_scalar(f'{MODEL}/{fold_id}/Loss/Train', train_loss, epoch)
+                writer.add_scalar(f'{MODEL}/{fold_id}/MSE/Train', train_mse, epoch)
                 writer.add_scalar(f'{MODEL}/{fold_id}/MAE/Train', train_mae, epoch)
 
             if FOLD_AMOUNT != 1:
@@ -170,19 +181,18 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
                                 batch['inputs'][key] = batch['inputs'][key].cuda()
                             batch['targets'] = batch['targets'].cuda()
                         y_pred = model(batch['inputs'])
-                        eval_loss += loss_fn(y_pred, batch['targets']).item()
+                        eval_loss += loss_fn(y_pred, batch['targets']).item() * len(batch['targets'])
                         eval_mse += torch.sum((y_pred - batch['targets']) ** 2).item()
                         eval_mae += torch.sum(torch.abs(y_pred - batch['targets'])).item()
 
                 eval_mse /= len(val_loader.dataset)
                 eval_mae /= len(val_loader.dataset)
-
-                eval_loss /= len(val_loader)
-                scheduler.step(eval_mse)
+                eval_loss /= len(val_loader.dataset)
+                #scheduler.step(eval_mse)
 
                 if writer is not None:
-                    writer.add_scalar(f'{MODEL}/{fold_id}/Loss/Validation', eval_mse, epoch)
-                    writer.add_scalar(f'{MODEL}/{fold_id}/MSE/Validation', eval_loss, epoch)
+                    writer.add_scalar(f'{MODEL}/{fold_id}/Loss/Validation', eval_loss, epoch)
+                    writer.add_scalar(f'{MODEL}/{fold_id}/MSE/Validation', eval_mse, epoch)
                     writer.add_scalar(f'{MODEL}/{fold_id}/MAE/Validation', eval_mae, epoch)
 
                 if eval_loss < best_fold_loss:

@@ -166,6 +166,10 @@ def fold_data():
         for key in data_train['demographics'].keys():
             data_train['demographics'][key][np.isnan(data_train['demographics'][key])] = 0
 
+        # Mean of SBP and DBP
+        mean_sbp = np.nanmean(data_train['targets']['sbp'])
+        mean_dbp = np.nanmean(data_train['targets']['dbp'])
+
         if OUTPUT_NORMALIZED:
             data_train['targets']['sbp'] = (data_train['targets']['sbp'] - min_sbp) / (max_sbp - min_sbp)
             data_train['targets']['dbp'] = (data_train['targets']['dbp'] - min_dbp) / (max_dbp - min_dbp)
@@ -210,6 +214,7 @@ def fold_data():
             'min_ppg': min_ppg, 'max_ppg': max_ppg,
             'min_sbp': min_sbp, 'max_sbp': max_sbp,
             'min_dbp': min_dbp, 'max_dbp': max_dbp,
+            'mean_sbp': mean_sbp, 'mean_dbp': mean_dbp,
             'mean_age': mean_age, 'std_age': std_age,
             'mean_height': mean_height, 'mean_weight': mean_weight, 'mean_bmi': mean_bmi,
             'std_height': std_height, 'std_weight': std_weight, 'std_bmi': std_bmi

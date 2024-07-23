@@ -176,3 +176,4 @@ cython_debug/
 /Data/UCI/*
 !/Data/UCI/Datasets
 Data/PulseDB/Datasets/Generate_Subsets.m
+/Deprecated Outputs/

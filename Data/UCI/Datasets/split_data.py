@@ -11,17 +11,17 @@ load_dotenv(os.path.join(ENV_PATH))
 
 SIGNAL_LENGTH = int(os.getenv('SAMPLES_PER_SEGMENT'))
 DATASET_PATH = os.getenv('DATASET_PATH')
-FOLDED_DATASET_PATH = os.getenv('FOLDED_DATASET_PATH')
+FOLDED_DATASET_PATH = os.path.join(os.getenv('FOLDED_DATASET_PATH'), 'dataset_all_minmax_removeOORSegment_detectpeak_cheby2_noHRcheck_SegmentRandom')
 
 TRAIN_TEST_SPLIT = float(os.getenv('TRAIN_TEST_SPLIT'))
 FOLD_AMOUNT = int(os.getenv('FOLD_AMOUNT'))
-
 MAX_DATASET_SIZE = int(os.getenv('MAX_DATASET_SEGMENTS'))
-
 OUTPUT_NORMALIZED = os.getenv('OUTPUT_NORMALIZED').lower() == 'true'
+MAX_SEGMENT_AMOUNT = int(os.getenv('MAX_SEGMENT_AMOUNT'))
 
+dataset_name = "dataset_all_minmax_removeOORSegment_detectpeak_cheby2_noHRcheck_SegmentRandom.hdf5"
 def fold_data():
-    if not os.path.isfile(os.path.join(DATASET_PATH, 'dataset.hdf5')):
+    if not os.path.isfile(os.path.join(DATASET_PATH, dataset_name)):
         print('Dataset file not found')
         return
     if not os.path.isdir(FOLDED_DATASET_PATH):
@@ -32,8 +32,11 @@ def fold_data():
 
     for fold_id in tqdm(range(FOLD_AMOUNT), desc='Folding Data'):
         # Load the dataset
-        f = h5py.File(os.path.join(DATASET_PATH, f'dataset_{MAX_DATASET_SIZE}.hdf5'), 'r')
+        f = h5py.File(os.path.join(DATASET_PATH, dataset_name), 'r')
         segment_amount = len(f['data'])
+        if segment_amount > MAX_SEGMENT_AMOUNT and MAX_SEGMENT_AMOUNT != -1:
+            segment_amount = MAX_SEGMENT_AMOUNT
+
 
         # Control the amount of data in each fold
         training_amount = int(TRAIN_TEST_SPLIT * segment_amount)
@@ -124,9 +127,9 @@ def fold_data():
             data_train['targets'][key] = np.array(data_train['targets'][key])
 
         # Min-max Normalize PPG, VPG, and APG
-        data_train['signals']['ppg'] = (data_train['signals']['ppg'] - min_ppg) / (max_ppg - min_ppg)
-        data_train['signals']['vpg'] = (data_train['signals']['vpg'] - min_vpg) / (max_vpg - min_vpg)
-        data_train['signals']['apg'] = (data_train['signals']['apg'] - min_apg) / (max_apg - min_apg)
+        #data_train['signals']['ppg'] = (data_train['signals']['ppg'] - min_ppg) / (max_ppg - min_ppg)
+        #data_train['signals']['vpg'] = (data_train['signals']['vpg'] - min_vpg) / (max_vpg - min_vpg)
+        #data_train['signals']['apg'] = (data_train['signals']['apg'] - min_apg) / (max_apg - min_apg)
 
         # Z-score Normalize PPG, VPG, and APG
         mean_ppg = np.mean(data_train['signals']['ppg'])
@@ -158,9 +161,9 @@ def fold_data():
             data_val['targets'][key] = np.array(data_val['targets'][key])
 
         # Min-max Normalize PPG, VPG, and APG
-        data_val['signals']['ppg'] = (data_val['signals']['ppg'] - min_ppg) / (max_ppg - min_ppg)
-        data_val['signals']['vpg'] = (data_val['signals']['vpg'] - min_vpg) / (max_vpg - min_vpg)
-        data_val['signals']['apg'] = (data_val['signals']['apg'] - min_apg) / (max_apg - min_apg)
+        #data_val['signals']['ppg'] = (data_val['signals']['ppg'] - min_ppg) / (max_ppg - min_ppg)
+        #data_val['signals']['vpg'] = (data_val['signals']['vpg'] - min_vpg) / (max_vpg - min_vpg)
+        #data_val['signals']['apg'] = (data_val['signals']['apg'] - min_apg) / (max_apg - min_apg)
 
         # Z-score Normalize PPG, VPG, and APG
         #data_val['signals']['ppg'] = (data_val['signals']['ppg'] - mean_ppg) / std_ppg
@@ -189,7 +192,7 @@ def fold_data():
             'mean_apg': mean_apg, 'std_apg': std_apg
         }, open(os.path.join(FOLDED_DATASET_PATH, f'stats_{fold_id}.pkl'), 'wb'))
 
-    f = h5py.File(os.path.join(DATASET_PATH, f'dataset_{MAX_DATASET_SIZE}.hdf5'), 'r')
+    f = h5py.File(os.path.join(DATASET_PATH, dataset_name), 'r')
 
     data_test = {'signals': {
         'ppg': [], 'vpg': [], 'apg': []

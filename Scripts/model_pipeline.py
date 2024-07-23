@@ -60,14 +60,6 @@ def setup_layout(best_fold_id=0):
         layout["Between Models"][f'Fold {fold_id} Both'] = ["Multiline",
                                                             [f"{model}/{fold_id}/Loss/Train" for model in LIST_OF_MODEL_NAMES] +
                                                             [f"{model}/{fold_id}/Loss/Validation" for model in LIST_OF_MODEL_NAMES]]
-    layout["Best Model"] = {
-        "training": ["Multiline", [f"{MODEL}/{best_fold_id}/Loss/Train"]],
-        "validation": ["Multiline", [f"{MODEL}/{best_fold_id}/Loss/Validation"]],
-        "training MSE": ["Multiline", [f"{MODEL}/{best_fold_id}/MSE/Train"]],
-        "validation MSE": ["Multiline", [f"{MODEL}/{best_fold_id}/MSE/Validation"]],
-        "training MAE": ["Multiline", [f"{MODEL}/{best_fold_id}/MAE/Train"]],
-        "validation MAE": ["Multiline", [f"{MODEL}/{best_fold_id}/MAE/Validation"]]
-    }
 
     return layout
 
@@ -99,14 +91,13 @@ def pipeline():
     writer = SummaryWriter(
         log_dir=os.path.join(outputs_path, 'Results', f'{MODEL}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'),
         filename_suffix=f'_{MODEL}')
+    writer.add_custom_scalars(setup_layout())
 
     best_fold_id = train_model(outputs_path=outputs_path, writer=writer)
     print(f"Best fold: {best_fold_id}")
     with open(os.path.join(outputs_path, 'metadata.txt'), 'a', encoding="utf-8") as f:
         f.write(f"Best fold: {best_fold_id}\n")
     evaluate_model(writer=writer, model_path=outputs_path, version=best_fold_id, test_mode=TEST_MODE)
-
-    writer.add_custom_scalars(setup_layout(best_fold_id))
     writer.flush()
 
 if __name__ == '__main__':
