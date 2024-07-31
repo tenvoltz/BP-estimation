@@ -38,6 +38,7 @@ TARGETS_LIST = [target.strip().lower() for target in os.getenv('TARGETS').split(
 SIGNAL_LENGTH = int(os.getenv('INPUT_LENGTH'))
 
 TEST_MODE = os.getenv('TEST_MODE').lower() == 'true'
+CALIBRATION_FREE = os.getenv('CALIBRATION_FREE').lower() == 'true'
 
 def evaluate_model(writer=None, model_path=OUTPUTS_PATH, version=MODEL_VERSION, test_mode=TEST_MODE):
     set_all_seeds(SEED, IS_CUDA)
@@ -52,7 +53,7 @@ def evaluate_model(writer=None, model_path=OUTPUTS_PATH, version=MODEL_VERSION, 
         max_dbp = data['max_dbp']
 
     # Load the test dataset
-    file_name = f'test.pkl' if test_mode else f'val_{version}.pkl'
+    file_name = f'cal_{version}.pkl' if CALIBRATION_FREE else f'test.pkl' if test_mode else f'val_{version}.pkl'
     if DATASET_NAME == 'PulseDB':
         test_dataset = PulseDBDataset(os.path.join(FOLDED_DATASET_PATH, file_name),
                                       signals=SIGNALS_LIST,
@@ -126,11 +127,11 @@ def evaluate_model(writer=None, model_path=OUTPUTS_PATH, version=MODEL_VERSION, 
     """
     # Make histograms of the predictions and true values
     hist_fig, ax = plt.subplots(2, 1, figsize=(10, 10))
-    ax[0].hist(y_preds[:, 0], bins=50, alpha=0.5, label='SBP', color='red', density = True)
+    ax[0].hist(y_preds[:, 0], bins=50, alpha=0.5, label='SBP', color='#F8CECC', density = True)
     #ax[0].hist(y_test[:, 0], bins=50, alpha=0.5, label='SBP True', color='green', density = True)
     ax[0].legend()
     ax[0].set_title('SBP Histogram')
-    ax[1].hist(y_preds[:, 1], bins=50, alpha=0.5, label='DBP', color='blue', density = True)
+    ax[1].hist(y_preds[:, 1], bins=50, alpha=0.5, label='DBP', color='#DAE8FC', density = True)
     #ax[1].hist(y_test[:, 1], bins=50, alpha=0.5, label='DBP True', color='green', density = True)
     ax[1].legend()
     ax[1].set_title('DBP Histogram')
@@ -179,6 +180,49 @@ def evaluate_model(writer=None, model_path=OUTPUTS_PATH, version=MODEL_VERSION, 
     y_preds = np.concatenate((y_preds_boxcox_sbp.reshape(-1, 1), y_preds_boxcox_dbp.reshape(-1, 1)), axis=1)
     y_test = np.concatenate((y_test_boxcox_sbp.reshape(-1, 1), y_test_boxcox_dbp.reshape(-1, 1)), axis=1)
     """
+    # Create a Bland-Altman plot of SBP and DBP where x is mean and y is difference
+    bland_altman_fig, ax = plt.subplots(2, 1, figsize=(10, 10))
+    sbp_diff = y_preds[:, 0] - y_test[:, 0]
+    dbp_diff = y_preds[:, 1] - y_test[:, 1]
+    sbp_mean = (y_preds[:, 0] + y_test[:, 0]) / 2
+    dbp_mean = (y_preds[:, 1] + y_test[:, 1]) / 2
+    ax[0].scatter(sbp_mean, sbp_diff, color='#F8CECC', s=20)
+    ax[0].set_title('SBP Bland-Altman Plot')
+    ax[1].scatter(dbp_mean, dbp_diff, color='#DAE8FC', s=20)
+    ax[1].set_title('DBP Bland-Altman Plot')
+    # Add mean line and 95% limits of agreement
+    sbp_mean_diff = np.mean(sbp_diff)
+    sbp_std_diff = np.std(sbp_diff)
+    dbp_mean_diff = np.mean(dbp_diff)
+    dbp_std_diff = np.std(dbp_diff)
+    sbp_upper_limit = sbp_mean_diff + 1.96 * sbp_std_diff
+    sbp_lower_limit = sbp_mean_diff - 1.96 * sbp_std_diff
+    dbp_upper_limit = dbp_mean_diff + 1.96 * dbp_std_diff
+    dbp_lower_limit = dbp_mean_diff - 1.96 * dbp_std_diff
+
+    # Add mean line and 95% limits of agreement with labels
+    ax[0].axhline(sbp_mean_diff, color='red', linestyle='-',
+                  label=f'Mean difference ({sbp_mean_diff:.2f})')
+    ax[0].axhline(sbp_upper_limit, color='black', linestyle='--',
+                  label=f'Upper 95% LoA ({sbp_upper_limit:.2f})')
+    ax[0].axhline(sbp_lower_limit, color='black', linestyle='--',
+                  label=f'Lower 95% LoA ({sbp_lower_limit:.2f})')
+
+    ax[1].axhline(dbp_mean_diff, color='blue', linestyle='-',
+                  label=f'Mean difference ({dbp_mean_diff:.2f})')
+    ax[1].axhline(dbp_upper_limit, color='black', linestyle='--',
+                  label=f'Upper 95% LoA ({dbp_upper_limit:.2f})')
+    ax[1].axhline(dbp_lower_limit, color='black', linestyle='--',
+                  label=f'Lower 95% LoA ({dbp_lower_limit:.2f})')
+    ax[0].legend(loc='upper right')
+    ax[1].legend(loc='upper right')
+    ax[0].set_xlabel('Mean of SBP (mmHg)')
+    ax[0].set_ylabel('Difference of SBP (mmHg)')
+    ax[1].set_xlabel('Mean of DBP (mmHg)')
+    ax[1].set_ylabel('Difference of DBP (mmHg)')
+    plt.tight_layout()
+    plt.subplots_adjust(hspace=0.3)
+
     # Make histogram of error
     error = y_preds - y_test
     hist_error_fig, ax = plt.subplots(2, 1, figsize=(10, 10))
@@ -208,6 +252,7 @@ def evaluate_model(writer=None, model_path=OUTPUTS_PATH, version=MODEL_VERSION, 
         writer.add_figure('Histogram', hist_fig)
         writer.add_figure('Error', hist_error_fig)
         writer.add_figure('Top 5 PPG error', ppg_error_fig)
+        writer.add_figure('Bland-Altman SBP', bland_altman_fig)
         writer.add_histogram('SBP', y_pred[:, 0], 0)
         writer.add_histogram('DBP', y_pred[:, 1], 0)
     else:

@@ -4,6 +4,7 @@ import torch
 import os
 from dotenv import load_dotenv
 import math
+from einops.layers.torch import Rearrange
 
 load_dotenv()
 DATA_PATH = os.getenv('DATA_PATH')
@@ -12,6 +13,34 @@ load_dotenv(os.path.join(DATA_PATH, DATASET_NAME, '.env'))
 
 SIGNAL_LENGTH = int(os.getenv('INPUT_LENGTH'))
 
+def drop_path(x, drop_prob: float = 0., training: bool = False):
+    if drop_prob == 0. or not training:
+        return x
+    keep_prob = 1 - drop_prob
+    shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
+    random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+    random_tensor.floor_()  # binarize
+    output = x.div(keep_prob) * random_tensor
+    return output
+
+
+class DropPath(nn.Module):
+    def __init__(self, drop_prob=None):
+        super(DropPath, self).__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+        return drop_path(x, self.drop_prob, self.training)
+class SequencePooling1D(nn.Module):
+    def __init__(self, reduction=1):
+        super(SequencePooling1D, self).__init__()
+        self.pool = nn.Sequential(
+            Rearrange("batch sequence embedding -> batch embedding sequence"),
+            nn.MaxPool1d(reduction) if reduction > 1 else nn.Identity(),
+            Rearrange("batch embedding sequence -> batch sequence embedding"),
+        )
+    def forward(self, x):
+        return self.pool(x)
 class SimpleAttention(nn.Module):
     def __init__(self, sequence_length, dropout=None):
         super().__init__()
@@ -141,7 +170,7 @@ class PositionalEncoding(nn.Module):
         encoding.require_grad = False
 
         # SIN/COS positional encoding per Vaswani et al.
-        position = torch.arange(0, max_len).float().reshape(-1,1)
+        position = torch.arange(0, max_len, dtype=torch.float32).unsqueeze(1)
         period = torch.pow(10000.0, torch.arange(0, embedding_size, 2).float() / embedding_size)
 
         encoding[:, :, 0::2] = torch.sin(position / period)
@@ -281,10 +310,15 @@ class MetaFormerEncoderBlock(nn.Module):
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
 
+        #self.dropPath1 = DropPath(0.1)
+        #self.dropPath2 = DropPath(0.1)
+
     def forward(self, X):
         #X = self.layer_norm1(X + self.dropout1(self.channel_mixer(X)))
         #X = self.layer_norm2(X + self.dropout2(self.feature_mixer(X)))
         # Pre-LN
+        #X = X + self.dropPath1(self.dropout1(self.channel_mixer(self.layer_norm1(X))))
+        #X = X + self.dropPath2(self.dropout2(self.feature_mixer(self.layer_norm2(X))))
         X = X + self.dropout1(self.channel_mixer(self.layer_norm1(X)))
         X = X + self.dropout2(self.feature_mixer(self.layer_norm2(X)))
         return X

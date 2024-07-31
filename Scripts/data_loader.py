@@ -85,12 +85,16 @@ class UCIDataset(Dataset):
         return sample
 
 if __name__ == '__main__':
-    dataset = UCIDataset(os.path.join(FOLDED_DATASET_PATH, 'val_0.pkl'),
+    dataset = PulseDBDataset(os.path.join(FOLDED_DATASET_PATH, 'val_0.pkl'),
                              signals=['ppg', 'vpg'],
                              targets=['sbp', 'dbp'],
-                             transform=transforms.Compose([Trim(10, TrimMethod.MIDDLE),
+                             transform=transforms.Compose([Trim(1024, TrimMethod.MIDDLE),
                                                            Tensorize()]))
     print(dataset[4])
-    print(len(dataset))
+    # Plot ppg and vpg signal
+    import matplotlib.pyplot as plt
+    plt.plot(dataset[4]['inputs']['signals'][0])
+    plt.plot(dataset[4]['inputs']['signals'][1])
+    plt.show()
 
 

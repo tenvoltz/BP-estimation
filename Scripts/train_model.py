@@ -47,7 +47,7 @@ SIGNAL_LENGTH = int(os.getenv('INPUT_LENGTH'))
 OUTPUT_NORMALIZED = os.getenv('OUTPUT_NORMALIZED').lower() == 'true'
 
 USED_FOLD_AMOUNT = int(os.getenv('USED_FOLD_AMOUNT'))
-
+CALIBRATION_FREE = os.getenv('CALIBRATION_FREE').lower() == 'true'
 def train_model(outputs_path=OUTPUTS_PATH, writer=None):
     if not os.path.exists(outputs_path):
         os.makedirs(outputs_path)
@@ -83,6 +83,12 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
                                         demographics=DEMOGRAPHICS_LIST,
                                         targets=TARGETS_LIST,
                                         transform=transform)
+            if CALIBRATION_FREE:
+                cal_dataset = PulseDBDataset(os.path.join(FOLDED_DATASET_PATH, f'cal_{fold_id}.pkl'),
+                                            signals=SIGNALS_LIST,
+                                            demographics=DEMOGRAPHICS_LIST,
+                                            targets=TARGETS_LIST,
+                                            transform=transform)
         elif DATASET_NAME == 'UCI':
             transform = transforms.Compose([Tensorize()])
             train_dataset = UCIDataset(os.path.join(FOLDED_DATASET_PATH, f'train_{fold_id}.pkl'),
@@ -109,6 +115,14 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
             num_workers=0,
             pin_memory=IS_CUDA  # Pytorch Recommendation
         )
+        if CALIBRATION_FREE:
+            cal_loader = Data.DataLoader(
+                dataset=cal_dataset,
+                batch_size=BATCH_SIZE,
+                shuffle=False,
+                num_workers=0,
+                pin_memory=IS_CUDA  # Pytorch Recommendation
+            )
 
         # Define the model
         if BIAS_INIT:
@@ -194,6 +208,31 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
                     writer.add_scalar(f'{MODEL}/{fold_id}/Loss/Validation', eval_loss, epoch)
                     writer.add_scalar(f'{MODEL}/{fold_id}/MSE/Validation', eval_mse, epoch)
                     writer.add_scalar(f'{MODEL}/{fold_id}/MAE/Validation', eval_mae, epoch)
+
+                if CALIBRATION_FREE:
+                    eval_loss = 0
+                    eval_mse = 0
+                    eval_mae = 0
+                    with torch.no_grad():
+                        for batch in tqdm(cal_loader, f'Fold {fold_id} Epoch {epoch} - Calibration'):
+                            if IS_CUDA:
+                                for key in batch['inputs']:
+                                    batch['inputs'][key] = batch['inputs'][key].cuda()
+                                batch['targets'] = batch['targets'].cuda()
+                            y_pred = model(batch['inputs'])
+                            eval_loss += loss_fn(y_pred, batch['targets']).item() * len(batch['targets'])
+                            eval_mse += torch.sum((y_pred - batch['targets']) ** 2).item()
+                            eval_mae += torch.sum(torch.abs(y_pred - batch['targets'])).item()
+
+                    eval_mse /= len(cal_loader.dataset)
+                    eval_mae /= len(cal_loader.dataset)
+                    eval_loss /= len(cal_loader.dataset)
+                    # scheduler.step(eval_mse)
+
+                    if writer is not None:
+                        writer.add_scalar(f'{MODEL}/{fold_id}/Loss/Calibration', eval_loss, epoch)
+                        writer.add_scalar(f'{MODEL}/{fold_id}/MSE/Calibration', eval_mse, epoch)
+                        writer.add_scalar(f'{MODEL}/{fold_id}/MAE/Calibration', eval_mae, epoch)
 
                 if eval_loss < best_fold_loss:
                     best_fold_id = fold_id

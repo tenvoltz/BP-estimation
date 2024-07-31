@@ -5,22 +5,16 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b97da8ca-1c4d-4aeb-832d-7ad58f650c8a" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/BP-estimation.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Data/PulseDB/Datasets/create_csv.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Scripts/Models/FNet.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Scripts/Models/IMSF.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Scripts/Models/mobilenetv2.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Scripts/Models/submodules.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/PulseDB/Datasets/create_csv.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/PulseDB/Datasets/create_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/PulseDB/Datasets/create_dataset.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Data/PulseDB/Datasets/split_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/PulseDB/Datasets/split_data.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Data/UCI/Datasets/analyze_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/UCI/Datasets/analyze_data.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Data/UCI/Datasets/create_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/UCI/Datasets/create_dataset.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Data/UCI/Datasets/process_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/UCI/Datasets/process_data.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Data/UCI/Datasets/split_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/UCI/Datasets/split_data.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/Models/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/Models/submodules.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/submodules.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/Models/transformer.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/transformer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/data_loader.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/evaluate_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/evaluate_model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/metrics.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/metrics.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/model_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/model_pipeline.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/train_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/train_model.py" afterDir="false" />
     </list>
@@ -62,34 +56,34 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Python.analyze_data.executor": "Run",
-    "Python.create_csv.executor": "Run",
-    "Python.create_dataset (1).executor": "Run",
-    "Python.create_dataset (2).executor": "Run",
-    "Python.create_dataset.executor": "Run",
-    "Python.data_loader.executor": "Run",
-    "Python.evaluate_model.executor": "Run",
-    "Python.flattenImage.executor": "Run",
-    "Python.metrics.executor": "Run",
-    "Python.model_pipeline.executor": "Run",
-    "Python.models.executor": "Run",
-    "Python.playground.executor": "Run",
-    "Python.process_data.executor": "Run",
-    "Python.split_data (1).executor": "Run",
-    "Python.split_data.executor": "Run",
-    "Python.submodels.executor": "Run",
-    "Python.submodules.executor": "Run",
-    "Python.train_model.executor": "Run",
-    "Python.transformer.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "git-widget-placeholder": "main",
-    "last_opened_file_path": "C:/Users/jaria092/PycharmProjects/BP-estimation/Data/Rafita/Raw_Data",
-    "settings.editor.selected.configurable": "Errors"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.analyze_data.executor&quot;: &quot;Run&quot;,
+    &quot;Python.create_csv.executor&quot;: &quot;Run&quot;,
+    &quot;Python.create_dataset (1).executor&quot;: &quot;Run&quot;,
+    &quot;Python.create_dataset (2).executor&quot;: &quot;Run&quot;,
+    &quot;Python.create_dataset.executor&quot;: &quot;Run&quot;,
+    &quot;Python.data_loader.executor&quot;: &quot;Run&quot;,
+    &quot;Python.evaluate_model.executor&quot;: &quot;Run&quot;,
+    &quot;Python.flattenImage.executor&quot;: &quot;Run&quot;,
+    &quot;Python.metrics.executor&quot;: &quot;Run&quot;,
+    &quot;Python.model_pipeline.executor&quot;: &quot;Run&quot;,
+    &quot;Python.models.executor&quot;: &quot;Run&quot;,
+    &quot;Python.playground.executor&quot;: &quot;Run&quot;,
+    &quot;Python.process_data.executor&quot;: &quot;Run&quot;,
+    &quot;Python.split_data (1).executor&quot;: &quot;Run&quot;,
+    &quot;Python.split_data.executor&quot;: &quot;Run&quot;,
+    &quot;Python.submodels.executor&quot;: &quot;Run&quot;,
+    &quot;Python.submodules.executor&quot;: &quot;Run&quot;,
+    &quot;Python.train_model.executor&quot;: &quot;Run&quot;,
+    &quot;Python.transformer.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/jaria092/PycharmProjects/BP-estimation/Data/Rafita/Raw_Data&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;Errors&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\Rafita\Raw_Data" />
@@ -97,14 +91,14 @@
       <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Scripts\Datasets" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\split_dataset\dataset_all_minmax_removeOORSegment_detectpeak_cheby2_noHRcheck" />
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\segmented_data\Wavelet500" />
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\split_dataset\dataset_all_minmax_removeOORInstance_detectpeak_cheby2_noHRcheck" />
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\raw_dataset" />
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\raw_dataset\Temp" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\raw_dataset\dataset_all_minmax_removeOORSegment_detectpeak_cheby2_noHRcheck_SegmentRandom" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\PulseDB\Dataset_Files" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\PulseDB\Dataset_Files\Rename_Later" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\PulseDB\Dataset_Files\dataset_100240_CalBased_1" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\PulseDB\Dataset_Files\dataset_30000_CalBased_0.2" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.model_pipeline">
+  <component name="RunManager" selected="Python.create_dataset">
     <configuration default="true" type="PythonConfigurationType" factoryName="Python">
       <module name="BP-estimation" />
       <option name="ENV_FILES" value="" />
@@ -171,7 +165,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="evaluate_model" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="create_dataset" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="BP-estimation" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -181,7 +175,7 @@
       </envs>
       <option name="SDK_HOME" value="" />
       <option name="SDK_NAME" value="MachineLearning" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Scripts" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Data/PulseDB/Datasets" />
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
@@ -195,7 +189,7 @@
           <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
         </ENTRIES>
       </EXTENSION>
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Scripts/evaluate_model.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Data/PulseDB/Datasets/create_dataset.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -236,7 +230,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="models" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="split_data (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="BP-estimation" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -246,7 +240,7 @@
       </envs>
       <option name="SDK_HOME" value="" />
       <option name="SDK_NAME" value="MachineLearning" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Scripts/Models" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Data/UCI/Datasets" />
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
@@ -260,7 +254,7 @@
           <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
         </ENTRIES>
       </EXTENSION>
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Scripts/Models/models.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Data/UCI/Datasets/split_data.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -269,7 +263,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="transformer" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="split_data" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="BP-estimation" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -279,7 +273,7 @@
       </envs>
       <option name="SDK_HOME" value="" />
       <option name="SDK_NAME" value="MachineLearning" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Scripts/Models" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Data/PulseDB/Datasets" />
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
@@ -293,7 +287,7 @@
           <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
         </ENTRIES>
       </EXTENSION>
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Scripts/Models/transformer.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Data/PulseDB/Datasets/split_data.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -303,19 +297,19 @@
       <method v="2" />
     </configuration>
     <list>
+      <item itemvalue="Python.create_dataset" />
+      <item itemvalue="Python.split_data" />
+      <item itemvalue="Python.split_data (1)" />
       <item itemvalue="Python.model_pipeline" />
-      <item itemvalue="Python.models" />
-      <item itemvalue="Python.transformer" />
       <item itemvalue="Python.analyze_data" />
-      <item itemvalue="Python.evaluate_model" />
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.create_dataset" />
         <item itemvalue="Python.model_pipeline" />
-        <item itemvalue="Python.models" />
-        <item itemvalue="Python.evaluate_model" />
+        <item itemvalue="Python.split_data" />
+        <item itemvalue="Python.split_data (1)" />
         <item itemvalue="Python.analyze_data" />
-        <item itemvalue="Python.transformer" />
       </list>
     </recent_temporary>
   </component>

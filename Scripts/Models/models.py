@@ -20,25 +20,159 @@ SIGNALS_LIST = [signal.strip().lower() for signal in os.getenv('SIGNALS').split(
 SIGNAL_LENGTH = int(os.getenv('INPUT_LENGTH'))
 BATCH_SIZE = int(os.getenv('BATCH_SIZE'))
 
-'''
-class IMSF_Net(nn.Module):
-    # Change this to Transformer_Only later on
+
+class TransFMSD(nn.Module):
     def __init__(self, bias_init=None):
-        super(IMSF_Net, self).__init__()
+        super(TransFMSD, self).__init__()
+        cnn_blocks_setting = [
+            # channel, reduction
+            [32, 2],
+            [40, 2],
+            [64, 2],
+            [80, 2],
+            [160, 2]
+        ]
         patch_blocks_setting = [
             # kernel_size, stride, padding, in_channel, out_channel
-            [3, 2, 1, len(SIGNALS_LIST)],
-            [3, 2, 1, 32],
-            [3, 2, 1, 48],
-            [3, 2, 1, 96],
+            [3, 2, 1, 48],  # 512 out   # 625
+            [3, 2, 1, 32],  # 256 out   # 312
+            [3, 2, 1, 64],  # 128_out   # 156
+            # [3, 2, 1, 96],
         ]
         transformer_blocks_setting = [
             # patch_amount, reduction, head_amount, mlp_hidden
-            [64, 1, 4, 512],
-            [64, 1, 4, 512],
-            [64, 1, 8, 512],
-            [64, 1, 8, 512],
-            [64, 1, 16, 512],
+            [128, 1, 8, 256],
+            [128, 2, 8, 256],
+            [64, 1, 8, 256],
+            [64, 1, 8, 256],
+        ]
+        cnn_branch = []
+        transformer_branch = []
+        fusion_branch = []
+        flatten_branch = []
+
+        embedding_size = SIGNAL_LENGTH
+        cnn_channel = len(SIGNALS_LIST)
+        for i in range(len(cnn_blocks_setting)):
+            out_channel, reduction = cnn_blocks_setting[i]
+            embedding_size //= reduction
+            cnn = [
+                ESPResidual_Block(cnn_channel, out_channel),
+                LCA(out_channel),
+                nn.Conv1d(out_channel, out_channel, kernel_size=1),
+                nn.BatchNorm1d(out_channel),
+            ]
+            if reduction != 1:
+                cnn.insert(1, nn.MaxPool1d(reduction))
+            cnn = nn.Sequential(*cnn)
+            cnn_branch.append(cnn)
+            cnn_channel = out_channel
+
+        flatten_branch.append(nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Dropout(0.1)
+        ))
+
+        transformer_channel = len(SIGNALS_LIST)
+        embedding_size = 128
+        for i in range(len(transformer_blocks_setting)):
+            patch_amount, reduction, head_amount, mlp_hidden = transformer_blocks_setting[i]
+
+            # Construct a diagonal mask
+            mask = 1 - torch.eye(patch_amount)
+            mask = mask.type(torch.bool)
+
+            transformer = [
+                MetaFormerEncoderBlock(
+                    # channel_mixer=MultiHeadedPoolingAttention(head_amount,
+                    #                                          embedding_size,
+                    #                                          reduction_ratio=reduction,
+                    #                                          dropout=0.1),
+                    channel_mixer=MultiHeadedAttention(head_amount, embedding_size,
+                                                       dropout=0.1, attention=LearnableScalingAttention,
+                                                       mask=mask)
+                    if head_amount != None else FNetBlock(),
+                    feature_mixer=LocalityFeedForward(embedding_size, head_amount),
+                    #feature_mixer=PositionwiseFeedForward(embedding_size, mlp_hidden),
+                    sequence_length=patch_amount,
+                    embedding_size=embedding_size,
+                    dropout=0.1
+                ),
+            ]
+            if i == 0:
+                # transformer.insert(0, LiPatch_Block(embedding_size=embedding_size,
+                #                                    patch_size=SIGNAL_LENGTH // patch_amount,
+                #                                    input_channel=transformer_channel))
+                shift_amount = 16
+                transformer.insert(0, LocalityInvariantShifting([i * (SIGNAL_LENGTH // shift_amount)
+                                                                 for i in range(shift_amount)]))
+                transformer.insert(1, ConvPatchify_Block(patch_blocks_setting, embedding_size))
+                # transformer.insert(2, PositionalEncoding(embedding_size))
+                transformer.insert(2, RandomEncoding(patch_amount, embedding_size))
+            else:
+                transformer.insert(0, Rearrange('batch embedding patch -> batch patch embedding'))
+            if reduction != 1:
+                transformer.append(SequencePooling1D(reduction))
+            transformer.append(Rearrange('batch patch embedding -> batch embedding patch'))
+            transformer = nn.Sequential(*transformer)
+            transformer_branch.append(transformer)
+
+            transformer_channel = embedding_size
+
+        flatten_branch.append(nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Dropout(0.1)
+        ))
+
+        self.cnn_branch = nn.ModuleList(cnn_branch)
+        self.transformer_branch = nn.ModuleList(transformer_branch)
+        self.fusion_branch = nn.ModuleList(fusion_branch)
+        self.flatten = nn.ModuleList(flatten_branch)
+
+        regression_channel = transformer_channel + cnn_channel
+        regression_head = nn.Linear(regression_channel, 2)
+        if bias_init is not None:
+            with torch.no_grad():
+                regression_head.bias.copy_(bias_init)
+        self.regression_head = nn.Sequential(
+            regression_head,
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        transformer_output = x['signals']
+        cnn_output = x['signals']
+        mixer_output = []
+        for i in range(len(self.cnn_branch)):
+            cnn_output = self.cnn_branch[i](cnn_output)
+        for i in range(len(self.transformer_branch)):
+            transformer_output = self.transformer_branch[i](transformer_output)
+        cnn_output = self.flatten[0](cnn_output)
+        transformer_output = self.flatten[1](transformer_output)
+        # Concatenate all output
+        x = torch.cat((cnn_output, transformer_output), dim=1)
+        x = self.regression_head(x)
+        return x
+
+class Transformer_Only(nn.Module):
+    # Change this to Transformer_Only later on
+    def __init__(self, bias_init=None):
+        super(Transformer_Only, self).__init__()
+        patch_blocks_setting = [
+            # kernel_size, stride, padding, in_channel, out_channel
+            [3, 2, 1, 48],                  # 512 out
+            [3, 2, 1, 64],                  # 256 out
+            [3, 2, 1, 96],                  # 128_out
+            #[3, 2, 1, 96],
+        ]
+        transformer_blocks_setting = [
+            # patch_amount, reduction, head_amount, mlp_hidden
+            [128, 1, 8, 256],
+            [128, 2, 8, 256],
+            [64, 1, 8, 256],
+            [64, 1, 8, 256],
         ]
         regression_channel = 0
         transformer_branch = []
@@ -61,7 +195,8 @@ class IMSF_Net(nn.Module):
                                                        dropout=0.1, attention=LearnableScalingAttention,
                                                        mask=mask)
                     if head_amount != None else FNetBlock(),
-                    feature_mixer=PositionwiseFeedForward(embedding_size, mlp_hidden, dropout=0.1),
+                    feature_mixer=LocalityFeedForward(embedding_size, head_amount),
+                    #feature_mixer=PositionwiseFeedForward(embedding_size, mlp_hidden),
                     sequence_length=patch_amount,
                     embedding_size=embedding_size,
                     dropout=0.1
@@ -71,11 +206,13 @@ class IMSF_Net(nn.Module):
                 # transformer.insert(0, LiPatch_Block(embedding_size=embedding_size,
                 #                                    patch_size=SIGNAL_LENGTH // patch_amount,
                 #                                    input_channel=transformer_channel))
-                transformer.insert(0, ConvPatchify_Block(patch_blocks_setting, embedding_size))
-                transformer.insert(1, PositionalEncoding(embedding_size))
-            #elif reduction != 1:
-            #    transformer.insert(0, nn.Conv1d(in_channel, patch_amount, kernel_size=1))
-            #if i == 0:
+                shift_amount = 16
+                transformer.insert(0, LocalityInvariantShifting([i * (SIGNAL_LENGTH // shift_amount)
+                                                                 for i in range(shift_amount)]))
+                transformer.insert(1, ConvPatchify_Block(patch_blocks_setting, embedding_size))
+                transformer.insert(2, PositionalEncoding(embedding_size))
+            if reduction != 1:
+                transformer.append(SequencePooling1D(reduction))
 
             transformer = nn.Sequential(*transformer)
             transformer_branch.append(transformer)
@@ -117,7 +254,7 @@ class IMSF_Net(nn.Module):
         x = self.flatten(x)
         x = self.regression_head(x)
         return x
-'''
+
 
 """
 class IMSF_Net(nn.Module):
@@ -224,9 +361,8 @@ class IMSF_Net(nn.Module):
         x = self.flatten(x)
         x = self.regression_head(x)
         return x
-
 """
-
+#'''
 class IMSF_Net(nn.Module):
     # Change this to MSCA_FNet later on
     def __init__(self, bias_init=None):
@@ -241,22 +377,23 @@ class IMSF_Net(nn.Module):
         ]
         patch_blocks_setting = [
             # kernel_size, stride, padding, in_channel, out_channel
-            [3, 2, 1, len(SIGNALS_LIST)],
-            [3, 2, 1, 32],
-            [3, 2, 1, 48],
-            [3, 2, 1, 96],
+            [3, 2, 1, 48],   # 512 out   # 625
+            [3, 2, 1, 32],                  # 256 out   # 312
+            [3, 2, 1, 64],                  # 128_out   # 156
+            #[3, 2, 1, 96],
         ]
         transformer_blocks_setting = [
             # patch_amount, reduction, head_amount, mlp_hidden
-            [64, 1, 8, 512],
-            [64, 1, 8, 512],
-            [64, 1, 8, 512],
-            [64, 1, 8, 512],
-            [64, 1, 8, 512],
+            [128, 1, 4, 512],
+            [128, 2, 4, 512],
+            [64, 1, 4, 512],
+            [64, 1, 4, 512],
+            [64, 1, 4, 512],
         ]
         cnn_branch = []
         transformer_branch = []
         fusion_branch = []
+        flatten_branch = []
 
         embedding_size = SIGNAL_LENGTH
         cnn_channel = len(SIGNALS_LIST)
@@ -273,8 +410,8 @@ class IMSF_Net(nn.Module):
             cnn_branch.append(cnn)
             cnn_channel = out_channel
 
-        cnn_branch.append(nn.Sequential(
-            nn.AvgPool1d(kernel_size=embedding_size),
+        flatten_branch.append(nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
             nn.Dropout(0.1)
         ))
@@ -297,72 +434,106 @@ class IMSF_Net(nn.Module):
                     channel_mixer=MultiHeadedAttention(head_amount, embedding_size,
                                                        dropout=0.1, attention=LearnableScalingAttention,
                                                        mask=mask)
-                    if head_amount is not None else FNetBlock(),
-                    feature_mixer=PositionwiseFeedForward(embedding_size, mlp_hidden, dropout=0.1),
+                    if head_amount != None else FNetBlock(),
+                    #feature_mixer=LocalityFeedForward(embedding_size, head_amount),
+                    feature_mixer=PositionwiseFeedForward(embedding_size, mlp_hidden),
                     sequence_length=patch_amount,
                     embedding_size=embedding_size,
                     dropout=0.1
                 ),
             ]
             if i == 0:
-                #transformer.insert(0, LiPatch_Block(embedding_size=embedding_size,
+                # transformer.insert(0, LiPatch_Block(embedding_size=embedding_size,
                 #                                    patch_size=SIGNAL_LENGTH // patch_amount,
                 #                                    input_channel=transformer_channel))
-                transformer.insert(0, ConvPatchify_Block(patch_blocks_setting, embedding_size))
-                transformer.insert(1, PositionalEncoding(embedding_size))
-            # elif reduction != 1:
-            #    transformer.insert(0, nn.Conv1d(in_channel, patch_amount, kernel_size=1))
-            # if i == 0:
-
+                shift_amount = 16
+                transformer.insert(0, LocalityInvariantShifting([i * (SIGNAL_LENGTH // shift_amount)
+                                                                 for i in range(shift_amount)]))
+                transformer.insert(1, ConvPatchify_Block(patch_blocks_setting, embedding_size))
+                #transformer.insert(2, PositionalEncoding(embedding_size))
+                transformer.insert(2, RandomEncoding(patch_amount, embedding_size))
+            else:
+                transformer.insert(0, Rearrange('batch embedding patch -> batch patch embedding'))
+            if reduction != 1:
+                transformer.append(SequencePooling1D(reduction))
+            transformer.append(Rearrange('batch patch embedding -> batch embedding patch'))
             transformer = nn.Sequential(*transformer)
             transformer_branch.append(transformer)
 
-            transformer_channel = patch_amount // reduction
+            transformer_channel = embedding_size
 
-        transformer_branch.append(nn.Sequential(
-            nn.AvgPool1d(kernel_size=embedding_size),
+        flatten_branch.append(nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
             nn.Dropout(0.1)
         ))
-        regression_channel = cnn_channel + transformer_channel
+        regression_channel = 128
 
         cnn_feature = SIGNAL_LENGTH
-        transformer_feature = embedding_size
-        for i in range(len(transformer_blocks_setting) - 1):
-            out_channel, reduction = cnn_blocks_setting[i]
-            patch_amount, _, head_amount, mlp_hidden = transformer_blocks_setting[i]
-            cnn_feature //= reduction
+        for i in range(len(transformer_blocks_setting)):
+            out_channel, cnn_reduction = cnn_blocks_setting[i]
+            patch_amount, patch_reduction, head_amount, mlp_hidden = transformer_blocks_setting[i]
+            transformer_feature = patch_amount // patch_reduction
+            cnn_feature //= cnn_reduction
+            #"""
+            if i != len(transformer_blocks_setting) - 1:
+                fusion = nn.ModuleList([
+                    #ChannelShuffle1D(2),
+                    #GatedConv_Block(out_channel),
+                    #nn.BatchNorm1d(out_channel),
+                    #nn.Sequential(
+                    #   nn.Conv1d(out_channel * 2, out_channel, kernel_size=1),
+                    #    nn.BatchNorm1d(out_channel),
+                    #)
+                    #Excitation_Block(out_channel, embedding_size),
+                    #Excitation_Block(embedding_size, out_channel),
+                    #nn.Sequential(
+                    #    nn.LazyLinear(128),
+                    #    nn.Dropout(0.1),
+                    #    nn.ReLU()
+                    #),
+                    Downsampling(out_channel, embedding_size, cnn_feature, transformer_feature)
+                    if cnn_feature >= transformer_feature
+                    else Upsampling(out_channel, embedding_size, cnn_feature, transformer_feature),
+                    Downsampling(embedding_size, out_channel, transformer_feature, cnn_feature)
+                    if transformer_feature >= cnn_feature
+                    else Upsampling(embedding_size, out_channel, transformer_feature, cnn_feature),
+                    nn.Sequential(
+                        nn.LazyConv1d(regression_channel, kernel_size=1),
+                        nn.BatchNorm1d(regression_channel),
+                        nn.AvgPool1d(transformer_feature),
+                        nn.Flatten(),
+                    ),
+                    nn.Sequential(
+                        nn.LazyConv1d(regression_channel, kernel_size=1),
+                        nn.BatchNorm1d(regression_channel),
+                        nn.AvgPool1d(cnn_feature),
+                        nn.Flatten(),
+                    ),
 
-            fusion = nn.ModuleList([
-                #ChannelShuffle1D(2),
-                #GatedConv_Block(out_channel),
-                #nn.BatchNorm1d(out_channel),
-                #nn.Sequential(
-                #   nn.Conv1d(out_channel * 2, out_channel, kernel_size=1),
-                #    nn.BatchNorm1d(out_channel),
-                #)
-                #Excitation_Block(out_channel, patch_amount),
-                Downsampling(out_channel, patch_amount, cnn_feature, transformer_feature)
-                if cnn_feature >= transformer_feature
-                else Upsampling(out_channel, patch_amount, cnn_feature, transformer_feature),
-                Downsampling(patch_amount, out_channel, transformer_feature, cnn_feature)
-                if transformer_feature >= cnn_feature
-                else Upsampling(patch_amount, out_channel, transformer_feature, cnn_feature),
-
-
-            ])
+                ])
+            #"""
+            else:
+                fusion = nn.ModuleList([
+                    nn.MaxPool1d(cnn_feature // transformer_feature)
+                    if cnn_feature >= transformer_feature
+                    else nn.Identity(),
+                    nn.MaxPool1d(transformer_feature // cnn_feature)
+                    if transformer_feature >= cnn_feature
+                    else nn.Identity(),
+                    nn.Sequential(
+                        nn.LazyConv1d(regression_channel, kernel_size=1),
+                        nn.BatchNorm1d(regression_channel),
+                        nn.AvgPool1d(min(cnn_feature, transformer_feature)),
+                        nn.Flatten(),
+                    )
+                ])
             fusion_branch.append(fusion)
 
         self.cnn_branch = nn.ModuleList(cnn_branch)
         self.transformer_branch = nn.ModuleList(transformer_branch)
         self.fusion_branch = nn.ModuleList(fusion_branch)
-        """
-        self.flatten = nn.Sequential(
-            nn.AvgPool1d(kernel_size=256),
-            nn.Flatten(),
-            nn.Dropout(0.1)
-        )
-        """
+        self.flatten = nn.ModuleList(flatten_branch)
 
         regression_head = nn.Linear(512, 2)
         if bias_init is not None:
@@ -378,26 +549,37 @@ class IMSF_Net(nn.Module):
 
 
     def forward(self, x):
-        x = x['signals']
-        cnn_output = x
+        transformer_output = x['signals']
+        cnn_output = x['signals']
+        mixer_output = []
         for i in range(len(self.cnn_branch)):
             cnn_output = self.cnn_branch[i](cnn_output)
-        #for i in range(len(self.transformer_branch)):
-            x = self.transformer_branch[i](x)
-            # Concatenate two layer then put through fusion
-            #x = torch.cat((cnn_output, x), dim=1)
-            #shuffle, gate, bn = self.fusion_branch[i]
-            #x1, x2 = shuffle(x)
-            #x = gate(identity=x1, gating=x2)
-            #x = bn(x)
-            if i < len(self.fusion_branch):
-                trans_in = x + self.fusion_branch[i][0](cnn_output)
-                cnn_output = cnn_output + self.fusion_branch[i][1](x)
-                x = trans_in
-        x = torch.cat((cnn_output, x), dim=1)
+            transformer_output = self.transformer_branch[i](transformer_output)
+            if i < len(self.fusion_branch) - 1:
+                #temp, t_excitation = self.fusion_branch[i][0](cnn_output, transformer_output)
+                #cnn_output, c_excitation = self.fusion_branch[i][1](transformer_output, cnn_output)
+                temp = transformer_output + self.fusion_branch[i][0](cnn_output)
+                cnn_output = cnn_output + self.fusion_branch[i][1](transformer_output)
+                transformer_output = temp
+                #t_excitation = self.fusion_branch[i][2](t_excitation)
+                #c_excitation = self.fusion_branch[i][2](c_excitation)
+                t_excitation = self.fusion_branch[i][2](transformer_output)
+                c_excitation = self.fusion_branch[i][3](cnn_output)
+                mixer_output.append(t_excitation + c_excitation)
+            elif i == len(self.fusion_branch) - 1:
+                cnn_resize, transformer_resize, mixer = self.fusion_branch[i]
+                cnn_resize = cnn_resize(cnn_output)
+                transformer_resize = transformer_resize(transformer_output)
+                mixer_output.append(mixer(torch.cat((cnn_resize, transformer_resize), dim=1)))
+        cnn_output = self.flatten[0](cnn_output)
+        transformer_output = self.flatten[1](transformer_output)
+        # Concatenate all output
+        #mixer_output = torch.cat(mixer_output, dim=1)
+        mixer_output = torch.stack(mixer_output, dim=1).sum(dim=1)
+        x = torch.cat((cnn_output, mixer_output, transformer_output), dim=1)
         x = self.regression_head(x)
         return x
-
+#'''
 
 class Transformer_Basic(nn.Module):
     def __init__(self, bias_init=None):
@@ -696,32 +878,60 @@ class CNN_Transformer(nn.Module):
         return x
 
 class CNN_Only(nn.Module):
-    def __init__(self):
+    def __init__(self, bias_init=None):
         super(CNN_Only, self).__init__()
-        self.conv1 = nn.Sequential(
-            nn.Conv1d(1, 32, kernel_size=5, stride=1, padding=2),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2)
-        )
-        self.conv2 = nn.Sequential(
-            nn.Conv1d(32, 64, kernel_size=5, stride=1, padding=2),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2)
-        )
+        cnn_blocks_setting = [
+            # channel, reduction
+            [32, 2],
+            [40, 2],
+            [64, 2],
+            [80, 2],
+            [160, 2]
+        ]
+        cnn_branch = []
+        flatten_branch = []
+
+        embedding_size = SIGNAL_LENGTH
+        cnn_channel = len(SIGNALS_LIST)
+        for i in range(len(cnn_blocks_setting)):
+            out_channel, reduction = cnn_blocks_setting[i]
+            embedding_size //= reduction
+            cnn = [
+                ESPResidual_Block(cnn_channel, out_channel),
+                LCA(out_channel),
+                nn.Conv1d(out_channel, out_channel, kernel_size=1),
+                nn.BatchNorm1d(out_channel),
+            ]
+            if reduction != 1:
+                cnn.insert(1, nn.MaxPool1d(reduction))
+            cnn = nn.Sequential(*cnn)
+            cnn_branch.append(cnn)
+            cnn_channel = out_channel
+
+        flatten_branch.append(nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Dropout(0.1)
+        ))
+
+        self.cnn_branch = nn.ModuleList(cnn_branch)
+        self.flatten = nn.ModuleList(flatten_branch)
+
+        regression_head = nn.Linear(cnn_channel, 2)
+        if bias_init is not None:
+            with torch.no_grad():
+                regression_head.bias.copy_(bias_init)
         self.regression_head = nn.Sequential(
-            nn.Dropout(0.1),
-            nn.LazyLinear(2),
+            regression_head,
             nn.ReLU()
         )
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = x.view(x.size(0), -1)
-        x = self.regression_head(x)
-
+        cnn_output = x['signals']
+        for i in range(len(self.cnn_branch)):
+            cnn_output = self.cnn_branch[i](cnn_output)
+        cnn_output = self.flatten[0](cnn_output)
+        x = self.regression_head(cnn_output)
         return x
 
 class Inception_Module(nn.Module):
@@ -773,6 +983,7 @@ class Inception_Module(nn.Module):
 
         return x
 
+'''
 class Transformer_Only(nn.Module):
     def __init__(self, bias_init=None, alpha=0.5):
         super(Transformer_Only, self).__init__()
@@ -836,7 +1047,7 @@ class Transformer_Only(nn.Module):
         x = x + x_conv
         x = self.regression_head(x)
         return x
-
+'''
 class Dummy_Model(nn.Module):
     def __init__(self):
         super(Dummy_Model, self).__init__()
@@ -852,11 +1063,11 @@ class Dummy_Model(nn.Module):
         return x
 
 if __name__ == '__main__':
-    model = IMSF_Net()
+    model = Transformer_Only()
     x = {
         'signals': torch.FloatTensor(torch.randn(128, 3, SIGNAL_LENGTH)),
         # 'demographics': torch.FloatTensor(torch.randn(BATCH_SIZE, 3))
-        'targets': torch.FloatTensor(torch.randn(128, 2))
+        # 'targets': torch.FloatTensor(torch.randn(128, 2))
     }
     """
     loss_fn = nn.L1Loss()

@@ -102,6 +102,34 @@ def plot_random_signals(max_seconds=20, record_id=None, filename=None):
     plt.tight_layout()
     print(f'Filename: {filename}')
 
+def plot_BP_Histogram():
+    f = h5py.File(os.path.join(DATASET_PATH, "dataset.hdf5"), 'r')
+    data = f['data']
+    # Get SBPS and DBPS in last two column
+    sbps = data[:, -2]
+    dbps = data[:, -1]
+    f.close()
+
+    fig, ax = plt.subplots(2, 1, figsize=(10, 8))
+    plt.subplot(2, 1, 1)
+    plt.hist(sbps, bins=50, color='#F8CECC')
+    plt.title('SBP Histogram')
+    plt.subplot(2, 1, 2)
+    plt.hist(dbps, bins=50, color='#DAE8FC')
+    plt.title('DBP Histogram')
+    ax[0].set_xlabel('SBP (mmHg)')
+    ax[0].set_ylabel('Frequency')
+    ax[1].set_xlabel('DBP (mmHg)')
+    ax[1].set_ylabel('Frequency')
+    plt.tight_layout()
+    plt.show()
+
+    # Print the max, min, and mean, std of the SBP and DBP
+    print(f'SBP Max: {max(sbps)}, Min: {min(sbps)}, Mean: {np.mean(sbps)}, Std: {np.std(sbps)}')
+    print(f'DBP Max: {max(dbps)}, Min: {min(dbps)}, Mean: {np.mean(dbps)}, Std: {np.std(dbps)}')
+
+
+
 # Example 2542
 
 # Part_1_15.pkl
@@ -112,7 +140,8 @@ def plot_random_signals(max_seconds=20, record_id=None, filename=None):
 
 if __name__ == '__main__':
     #plot_cheby2_filter()
-    plot_random_signals(filename='Part_1_15.pkl')
+    #plot_random_signals(filename='Part_1_15.pkl')
     #for i in range(5):
     #    plot_random_signals()
+    plot_BP_Histogram()
     plt.show()

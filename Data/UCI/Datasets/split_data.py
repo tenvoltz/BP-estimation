@@ -18,10 +18,8 @@ FOLD_AMOUNT = int(os.getenv('FOLD_AMOUNT'))
 MAX_DATASET_SIZE = int(os.getenv('MAX_DATASET_SEGMENTS'))
 OUTPUT_NORMALIZED = os.getenv('OUTPUT_NORMALIZED').lower() == 'true'
 MAX_SEGMENT_AMOUNT = int(os.getenv('MAX_SEGMENT_AMOUNT'))
-
-dataset_name = "dataset_all_minmax_removeOORSegment_detectpeak_cheby2_noHRcheck_SegmentRandom.hdf5"
 def fold_data():
-    if not os.path.isfile(os.path.join(DATASET_PATH, dataset_name)):
+    if not os.path.isfile(DATASET_PATH):
         print('Dataset file not found')
         return
     if not os.path.isdir(FOLDED_DATASET_PATH):
@@ -32,7 +30,7 @@ def fold_data():
 
     for fold_id in tqdm(range(FOLD_AMOUNT), desc='Folding Data'):
         # Load the dataset
-        f = h5py.File(os.path.join(DATASET_PATH, dataset_name), 'r')
+        f = h5py.File(DATASET_PATH, 'r')
         segment_amount = len(f['data'])
         if segment_amount > MAX_SEGMENT_AMOUNT and MAX_SEGMENT_AMOUNT != -1:
             segment_amount = MAX_SEGMENT_AMOUNT

@@ -4,15 +4,63 @@ import torchinfo
 from dotenv import load_dotenv
 import os
 
-from Models.transformer import SimpleMultiHeadedAttention
+from Models.transformer import SimpleMultiHeadedAttention, DropPath
 from einops.layers.torch import Rearrange
 from Models.IMSF import ECA
+
+class SequenceShifter(nn.Module):
+    def __init__(self, shifts):
+        super(SequenceShifter, self).__init__()
+        self.shifts = shifts
+    def forward(self, x):
+        return torch.roll(x, self.shifts, -1)
+class LocalityInvariantShifting(nn.Module):
+    def __init__(self, shifts):
+        super(LocalityInvariantShifting, self).__init__()
+        self.shifts = nn.ModuleList([SequenceShifter(shift) for shift in shifts])
+    def forward(self, x):
+        # Append all shift along channel dimension
+        x = [shift(x) for shift in self.shifts]
+        x = torch.cat(x, dim=1)
+        return x
+
+class HeadSE(nn.Module):
+    def __init__(self, channel, head_amount):
+        super(HeadSE, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool1d(1)
+        self.conv = nn.Sequential(
+            nn.Conv1d(channel, channel, kernel_size=1, groups=channel//head_amount),
+            nn.BatchNorm1d(channel),
+            nn.ReLU(),
+            nn.Conv1d(channel, channel, kernel_size=1),
+            nn.BatchNorm1d(channel),
+            nn.Sigmoid(),
+        )
+    def forward(self, x):
+        y = self.avg_pool(x)
+        y = self.conv(y)
+        return x * y.expand_as(x)
+
+class LocalityFeedForward(nn.Module):
+    def __init__(self, embedding_size, head_amount):
+        super(LocalityFeedForward, self).__init__()
+        self.conv = nn.Sequential(
+            Rearrange("batch sequence embedding -> batch embedding sequence"),
+            nn.Conv1d(embedding_size, embedding_size, 3, padding=1, groups=embedding_size // head_amount),
+            nn.BatchNorm1d(embedding_size),
+            nn.GELU(),
+            #ESPResidual_Block(embedding_size, embedding_size),
+            #LCA(embedding_size),
+            Rearrange("batch embedding sequence -> batch sequence embedding"),
+        )
+    def forward(self, x):
+        return self.conv(x)
 
 class Downsampling(nn.Module):
     def __init__(self, input_channel, output_channel, input_feature, output_feature):
         super(Downsampling, self).__init__()
         assert input_feature % output_feature == 0
-        self.conv = nn.Conv1d(input_channel, output_channel, kernel_size=3, padding=1)
+        self.conv = nn.Conv1d(input_channel, output_channel, kernel_size=1, padding="same")
         self.pool = nn.MaxPool1d(input_feature // output_feature)
         self.bn = nn.BatchNorm1d(output_channel)
         self.relu = nn.ReLU()
@@ -26,7 +74,7 @@ class Upsampling(nn.Module):
     def __init__(self, input_channel, output_channel, input_feature, output_feature):
         super(Upsampling, self).__init__()
         assert output_feature % input_feature == 0
-        self.conv = nn.Conv1d(input_channel, output_channel, kernel_size=3, padding=1)
+        self.conv = nn.Conv1d(input_channel, output_channel, kernel_size=1, padding="same")
         self.upsample = nn.Upsample(scale_factor=output_feature // input_feature)
         self.bn = nn.BatchNorm1d(output_channel)
         self.relu = nn.ReLU()
@@ -37,11 +85,11 @@ class Upsampling(nn.Module):
         x = self.relu(x)
         return x
 class Excitation_Block(nn.Module):
-    def __init__(self, cnn_channel, transformer_channel, reduction=16):
+    def __init__(self, guider, exciter, reduction=16):
         super(Excitation_Block, self).__init__()
         self.avg_pool1 = nn.AdaptiveAvgPool1d(1)
         self.avg_pool2 = nn.AdaptiveAvgPool1d(1)
-        channel = cnn_channel + transformer_channel
+        channel = guider + exciter
         self.fc = nn.Sequential(
             nn.Flatten(),
             nn.Linear(channel, channel // reduction),
@@ -49,19 +97,20 @@ class Excitation_Block(nn.Module):
             nn.Linear(channel // reduction, channel),
         )
         self.conv = nn.Sequential(
-            nn.Conv1d(channel, transformer_channel, kernel_size=1),
-            nn.BatchNorm1d(transformer_channel),
+            nn.Conv1d(channel, exciter, kernel_size=1),
+            nn.BatchNorm1d(exciter),
             nn.Sigmoid(),
         )
-    def forward(self, cnn_output, transformer_output):
-        x1 = self.avg_pool1(cnn_output)
-        x2 = self.avg_pool2(transformer_output)
+    def forward(self, guider, exciter):
+        x1 = self.avg_pool1(guider)
+        x2 = self.avg_pool2(exciter)
         x = torch.cat([x1, x2], dim=1)
-        x = self.fc(x)
-        x = x.unsqueeze(-1)
+        excitation = self.fc(x)
+        #x = x.unsqueeze(-1)
         x = self.conv(x)
-        x = transformer_output * x.expand_as(transformer_output)
-        return x
+        #excitation = x.squeeze(-1)
+        x = exciter * x.expand_as(exciter)
+        return x, excitation
 
 
 class ChannelShuffle1D(nn.Module):
@@ -190,6 +239,7 @@ class ESPResidual_Block(nn.Module):
             nn.ReLU(),
         )
         self.residual = nn.Conv1d(input_channel, output_channel, 1)
+        #self.drop = DropPath(0.1)
     def forward(self, x):
         # Save the input for the residual connection
         residual = self.residual(x)
@@ -209,6 +259,7 @@ class ESPResidual_Block(nn.Module):
         #add4 = add3 + d16
 
         x = torch.cat([d1, fusion], dim=1)
+        #x = self.drop(x)
         x = residual + x
         x = self.bn(x)
         return x
@@ -385,9 +436,8 @@ class DiCNN_Block(nn.Module):
 
 
 if __name__ == '__main__':
-    dummy_input = {'signals': torch.randint(0, 10, (2, 2, 3))}
+    dummy_input = {'signals': torch.randint(0, 10, (1, 3, 5))}
     print(dummy_input)
-    model = ChannelShuffle1D(2)
-    x1, x2 = model(dummy_input['signals'])
+    model = LocalityInvariantShifting([1, 2, 3])
+    x1 = model(dummy_input['signals'])
     print(x1)
-    print(x2)

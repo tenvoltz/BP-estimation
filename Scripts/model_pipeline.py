@@ -40,26 +40,49 @@ def setup_layout(best_fold_id=0):
         layout[model] = {}
         for fold_id in range(FOLD_AMOUNT):
             layout[model][f'Fold {fold_id} loss'] = ["Multiline", [f"{model}/{fold_id}/Loss/Train",
-                                                                    f"{model}/{fold_id}/Loss/Validation"]]
+                                                                    f"{model}/{fold_id}/Loss/Validation",
+                                                                    f"{model}/{fold_id}/Loss/Calibration"]]
             layout[model][f'Fold {fold_id} MSE'] = ["Multiline", [f"{model}/{fold_id}/MSE/Train",
-                                                                  f"{model}/{fold_id}/MSE/Validation"]]
+                                                                  f"{model}/{fold_id}/MSE/Validation",
+                                                                  f"{model}/{fold_id}/MSE/Calibration"]]
             layout[model][f'Fold {fold_id} MAE'] = ["Multiline", [f"{model}/{fold_id}/MAE/Train",
-                                                                  f"{model}/{fold_id}/MAE/Validation"]]
+                                                                  f"{model}/{fold_id}/MAE/Validation",
+                                                                  f"{model}/{fold_id}/MAE/Calibration"]]
     layout["Overall"] = {
         "training": ["Multiline", [f"{MODEL}/{fold_id}/Loss/Train" for fold_id in range(FOLD_AMOUNT)]],
         "validation": ["Multiline", [f"{MODEL}/{fold_id}/Loss/Validation" for fold_id in range(FOLD_AMOUNT)]],
+        "calibration": ["Multiline", [f"{MODEL}/{fold_id}/Loss/Calibration" for fold_id in range(FOLD_AMOUNT)]],
         "training MSE": ["Multiline", [f"{MODEL}/{fold_id}/MSE/Train" for fold_id in range(FOLD_AMOUNT)]],
         "validation MSE": ["Multiline", [f"{MODEL}/{fold_id}/MSE/Validation" for fold_id in range(FOLD_AMOUNT)]],
+        "calibration MSE": ["Multiline", [f"{MODEL}/{fold_id}/MSE/Calibration" for fold_id in range(FOLD_AMOUNT)]],
         "training MAE": ["Multiline", [f"{MODEL}/{fold_id}/MAE/Train" for fold_id in range(FOLD_AMOUNT)]],
-        "validation MAE": ["Multiline", [f"{MODEL}/{fold_id}/MAE/Validation" for fold_id in range(FOLD_AMOUNT)]]
+        "validation MAE": ["Multiline", [f"{MODEL}/{fold_id}/MAE/Validation" for fold_id in range(FOLD_AMOUNT)]],
+        "calibration MAE": ["Multiline", [f"{MODEL}/{fold_id}/MAE/Calibration" for fold_id in range(FOLD_AMOUNT)]]
     }
     layout["Between Models"] = {}
     for fold_id in range(FOLD_AMOUNT):
         layout["Between Models"][f'Fold {fold_id} Training'] = ["Multiline", [f"{model}/{fold_id}/Loss/Train" for model in LIST_OF_MODEL_NAMES]]
         layout["Between Models"][f'Fold {fold_id} Validation'] = ["Multiline", [f"{model}/{fold_id}/Loss/Validation" for model in LIST_OF_MODEL_NAMES]]
+        layout["Between Models"][f'Fold {fold_id} Calibration'] = ["Multiline", [f"{model}/{fold_id}/Loss/Calibration" for model in LIST_OF_MODEL_NAMES]]
         layout["Between Models"][f'Fold {fold_id} Both'] = ["Multiline",
                                                             [f"{model}/{fold_id}/Loss/Train" for model in LIST_OF_MODEL_NAMES] +
-                                                            [f"{model}/{fold_id}/Loss/Validation" for model in LIST_OF_MODEL_NAMES]]
+                                                            [f"{model}/{fold_id}/Loss/Validation" for model in LIST_OF_MODEL_NAMES] +
+                                                            [f"{model}/{fold_id}/Loss/Calibration" for model in LIST_OF_MODEL_NAMES]]
+        layout["Between Models"][f'Fold {fold_id} Training MAE'] = ["Multiline", [f"{model}/{fold_id}/MAE/Train" for model in LIST_OF_MODEL_NAMES]]
+        layout["Between Models"][f'Fold {fold_id} Validation MAE'] = ["Multiline", [f"{model}/{fold_id}/MAE/Validation" for model in LIST_OF_MODEL_NAMES]]
+        layout["Between Models"][f'Fold {fold_id} Calibration MAE'] = ["Multiline", [f"{model}/{fold_id}/MAE/Calibration" for model in LIST_OF_MODEL_NAMES]]
+        layout["Between Models"][f'Fold {fold_id} Both MAE'] = ["Multiline",
+                                                            [f"{model}/{fold_id}/MAE/Train" for model in LIST_OF_MODEL_NAMES] +
+                                                            [f"{model}/{fold_id}/MAE/Validation" for model in LIST_OF_MODEL_NAMES] +
+                                                            [f"{model}/{fold_id}/MAE/Calibration" for model in LIST_OF_MODEL_NAMES]]
+        layout["Between Models"][f'Fold {fold_id} Training MSE'] = ["Multiline", [f"{model}/{fold_id}/MSE/Train" for model in LIST_OF_MODEL_NAMES]]
+        layout["Between Models"][f'Fold {fold_id} Validation MSE'] = ["Multiline", [f"{model}/{fold_id}/MSE/Validation" for model in LIST_OF_MODEL_NAMES]]
+        layout["Between Models"][f'Fold {fold_id} Calibration MSE'] = ["Multiline", [f"{model}/{fold_id}/MSE/Calibration" for model in LIST_OF_MODEL_NAMES]]
+        layout["Between Models"][f'Fold {fold_id} Both MSE'] = ["Multiline",
+                                                            [f"{model}/{fold_id}/MSE/Train" for model in LIST_OF_MODEL_NAMES] +
+                                                            [f"{model}/{fold_id}/MSE/Validation" for model in LIST_OF_MODEL_NAMES] +
+                                                            [f"{model}/{fold_id}/MSE/Calibration" for model in LIST_OF_MODEL_NAMES]]
+
 
     return layout
 

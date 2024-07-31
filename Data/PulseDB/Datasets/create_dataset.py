@@ -13,15 +13,13 @@ load_dotenv(os.path.join(ENV_PATH))
 SUBSETS_PATH = os.getenv('SUBSETS_PATH')
 DATASET_PATH = os.getenv('DATASET_PATH')
 
-MAX_DATASET_SIZE = int(os.getenv('MAX_DATASET_SEGMENTS'))
 TRAIN_TEST_SPLIT = float(os.getenv('TRAIN_TEST_SPLIT'))
-PATIENT_SIGNAL_RATIO = [float(i) for i in os.getenv('PATIENT_SIGNAL_RATIO').split(',')]
+PATIENT_PERCENTAGE = [float(i) for i in os.getenv('PATIENT_PERCENTAGE').split(',')]
 
 SIGNAL_LENGTH = int(os.getenv('SAMPLES_PER_SEGMENT'))
-
 SEED = int(os.getenv('SEED'))
-
 MATLAB_FIELD_NAME = 'Subset'
+CALIBRATION_FREE = os.getenv('CALIBRATION_FREE') == 'True'
 def create_dataset(input_path, max_amount=-1, dataset_type="Train", ratios=None):
     if ratios is None:
         ratios = [1]
@@ -64,9 +62,16 @@ def create_dataset(input_path, max_amount=-1, dataset_type="Train", ratios=None)
 
     for ratio in ratios:
         print(f'############### Creating Dataset with ratio={ratio} ###############')
-        if os.path.exists(os.path.join(DATASET_PATH, f'dataset_{max_amount}_{dataset_type}_{ratio}.hdf5')):
+        if os.path.exists(os.path.join(DATASET_PATH, f'dataset_{max_amount}_{dataset_type}_{ratio}')):
             print(f'Dataset with amount={max_amount} ratio={ratio} already exists')
             continue
+
+        number_of_subjects = int((len(subjects_start) - 1) * ratio)
+        number_of_segments = int(np.mean(np.diff(subjects_start)))
+
+        subject_train = int(number_of_subjects * TRAIN_TEST_SPLIT)
+        subject_val = number_of_subjects - subject_train
+
         ecgs = []
         vecgs = []
         aecgs = []
@@ -81,17 +86,7 @@ def create_dataset(input_path, max_amount=-1, dataset_type="Train", ratios=None)
         weight = []
         bmi = []
 
-        number_of_subjects = int((len(subjects_start) - 1) * ratio)
-        if dataset_type == "Train":
-            number_of_segments = (max_amount * TRAIN_TEST_SPLIT) // number_of_subjects
-        else:
-            number_of_segments = (max_amount * (1 - TRAIN_TEST_SPLIT)) // number_of_subjects
-        if ratio == 1:
-            number_of_segments = int(np.mean(np.diff(subjects_start)))
-
-        dataset = []
-
-        for i in tqdm(range(number_of_subjects), desc=f'Getting Data. Current Subject:'):
+        for i in tqdm(range(0, subject_train), desc=f'Getting Data. Current Subject:'):
 
             start = int(subjects_start[i])
             end = int(subjects_start[i] + (number_of_segments if ratio != 1 else int(subjects_start[i+1])))
@@ -115,6 +110,13 @@ def create_dataset(input_path, max_amount=-1, dataset_type="Train", ratios=None)
             vecgs.extend(vecg_temp)
             aecgs.extend(aecg_temp)
 
+            # Graph a sample of the ppg and ecg on subplots
+            #import matplotlib.pyplot as plt
+            #fig, axs = plt.subplots(2)
+            #axs[0].plot(ppg_temp[0])
+            #axs[1].plot(ecg_temp[0])
+            #plt.show()
+
             sbps.extend(sbps_all[start:end])
             dbps.extend(dbps_all[start:end])
             age.extend(age_all[start:end])
@@ -126,25 +128,27 @@ def create_dataset(input_path, max_amount=-1, dataset_type="Train", ratios=None)
         pickle.dump({
             'number_of_subjects': number_of_subjects,
             'number_of_segments': number_of_segments,
-        }, open(os.path.join(DATASET_PATH, f'stats_{max_amount}_{dataset_type}_{ratio}.pkl'), 'wb'))
+        }, open(os.path.join(DATASET_PATH, f'stats.pkl'), 'wb'))
 
         # Convert Gender into numerical values where M=1 and F=-1
         gender = np.where(np.array(gender) == 'M', 1, -1)
 
         # Shuffle the dataset
-        dataset = np.concatenate((ecgs, vecgs, aecgs, ppgs, vpgs, apgs,
+        dataset = np.concatenate((ppgs, vpgs, apgs, #ecgs, vecgs, aecgs,
                                   np.stack((age, gender, height, weight, bmi, sbps, dbps), axis=1)), axis=1)
+
+
         np.random.seed(SEED)
         np.random.shuffle(dataset)
 
-        f = h5py.File(os.path.join(DATASET_PATH, f'dataset_{max_amount}_{dataset_type}_{ratio}.hdf5'), 'w')
+        f = h5py.File(os.path.join(DATASET_PATH, f'dataset.hdf5'), 'w')
         signal_group = f.create_group('signals')
-        signal_group['ecg'] = dataset[:, :SIGNAL_LENGTH]
-        signal_group['vecg'] = dataset[:, SIGNAL_LENGTH:2 * SIGNAL_LENGTH]
-        signal_group['aecg'] = dataset[:, 2 * SIGNAL_LENGTH:3 * SIGNAL_LENGTH]
         signal_group['ppg'] = dataset[:, :SIGNAL_LENGTH]
         signal_group['vpg'] = dataset[:, SIGNAL_LENGTH:2 * SIGNAL_LENGTH]
         signal_group['apg'] = dataset[:, 2 * SIGNAL_LENGTH:3 * SIGNAL_LENGTH]
+        #signal_group['ecg'] = dataset[:, 3 * SIGNAL_LENGTH:4 * SIGNAL_LENGTH]
+        #signal_group['vecg'] = dataset[:, 4 * SIGNAL_LENGTH:5 * SIGNAL_LENGTH]
+        #signal_group['aecg'] = dataset[:, 5 * SIGNAL_LENGTH:6 * SIGNAL_LENGTH]
         demographic_group = f.create_group('demographics')
         demographic_group['age'] = dataset[:, -7]
         demographic_group['gender'] = dataset[:, -6]
@@ -155,9 +159,91 @@ def create_dataset(input_path, max_amount=-1, dataset_type="Train", ratios=None)
         target_group['sbp'] = dataset[:, -2]
         target_group['dbp'] = dataset[:, -1]
 
+        ###### For calibration
+
+        if CALIBRATION_FREE:
+            ecgs = []
+            vecgs = []
+            aecgs = []
+            ppgs = []
+            vpgs = []
+            apgs = []
+            sbps = []
+            dbps = []
+            age = []
+            gender = []
+            height = []
+            weight = []
+            bmi = []
+
+            for i in tqdm(range(subject_train, subject_train + subject_val), desc=f'Getting Data. Current Subject:'):
+
+                start = int(subjects_start[i])
+                end = int(subjects_start[i] + (number_of_segments if ratio != 1 else int(subjects_start[i + 1])))
+
+                if end > subjects_start[i + 1]:
+                    end = int(subjects_start[i + 1])
+
+                ppg_temp = ppg_all[start:end]
+                vpg_temp = np.gradient(ppg_temp, axis=1)
+                apg_temp = np.gradient(vpg_temp, axis=1)
+
+                ppgs.extend(ppg_temp)
+                vpgs.extend(vpg_temp)
+                apgs.extend(apg_temp)
+
+                ecg_temp = ecg_all[start:end]
+                vecg_temp = np.gradient(ecg_temp, axis=1)
+                aecg_temp = np.gradient(vecg_temp, axis=1)
+
+                ecgs.extend(ecg_temp)
+                vecgs.extend(vecg_temp)
+                aecgs.extend(aecg_temp)
+
+                sbps.extend(sbps_all[start:end])
+                dbps.extend(dbps_all[start:end])
+                age.extend(age_all[start:end])
+                gender.extend(gender_all[start:end])
+                height.extend(height_all[start:end])
+                weight.extend(weight_all[start:end])
+                bmi.extend(bmi_all[start:end])
+
+            pickle.dump({
+                'number_of_subjects': number_of_subjects,
+                'number_of_segments': number_of_segments,
+            }, open(os.path.join(DATASET_PATH, f'stats_cal.pkl'), 'wb'))
+
+            # Convert Gender into numerical values where M=1 and F=-1
+            gender = np.where(np.array(gender) == 'M', 1, -1)
+
+            # Shuffle the dataset
+            dataset = np.concatenate((ecgs, vecgs, aecgs, ppgs, vpgs, apgs,
+                                      np.stack((age, gender, height, weight, bmi, sbps, dbps), axis=1)), axis=1)
+
+            np.random.seed(SEED)
+            np.random.shuffle(dataset)
+
+            f = h5py.File(os.path.join(DATASET_PATH, f'dataset_cal.hdf5'), 'w')
+            signal_group = f.create_group('signals')
+            signal_group['ecg'] = dataset[:, :SIGNAL_LENGTH]
+            signal_group['vecg'] = dataset[:, SIGNAL_LENGTH:2 * SIGNAL_LENGTH]
+            signal_group['aecg'] = dataset[:, 2 * SIGNAL_LENGTH:3 * SIGNAL_LENGTH]
+            signal_group['ppg'] = dataset[:, 3 * SIGNAL_LENGTH:4 * SIGNAL_LENGTH]
+            signal_group['vpg'] = dataset[:, 4 * SIGNAL_LENGTH:5 * SIGNAL_LENGTH]
+            signal_group['apg'] = dataset[:, 5 * SIGNAL_LENGTH:6 * SIGNAL_LENGTH]
+            demographic_group = f.create_group('demographics')
+            demographic_group['age'] = dataset[:, -7]
+            demographic_group['gender'] = dataset[:, -6]
+            demographic_group['height'] = dataset[:, -5]
+            demographic_group['weight'] = dataset[:, -4]
+            demographic_group['bmi'] = dataset[:, -3]
+            target_group = f.create_group('targets')
+            target_group['sbp'] = dataset[:, -2]
+            target_group['dbp'] = dataset[:, -1]
+
 if __name__ == '__main__':
     #for file in os.listdir(SUBSETS_PATH):
     #    if file.endswith(".mat"):
-            file = 'AAMI_Cal_Subset.mat'
+            file = 'Train_Subset.mat'
             create_dataset(os.path.join(SUBSETS_PATH, file),
                            dataset_type=file.split('_')[0])
