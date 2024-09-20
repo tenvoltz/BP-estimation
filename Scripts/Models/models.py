@@ -4,12 +4,9 @@ import torchinfo
 from dotenv import load_dotenv
 import os
 
-from einops.layers.torch import Rearrange
 from Models.FNet import *
 from Models.submodules import *
-from Models.IMSF import ECA, IMSF_Block
 from Models.transformer import *
-from Models.mobilenetv2 import MobileNetV2
 
 load_dotenv()
 DATA_PATH = os.getenv('DATA_PATH')
@@ -21,7 +18,7 @@ SIGNAL_LENGTH = int(os.getenv('INPUT_LENGTH'))
 BATCH_SIZE = int(os.getenv('BATCH_SIZE'))
 
 
-class TransFMSD(nn.Module):
+class TransFMSD(nn.Module): # Benchmark Model
     def __init__(self, bias_init=None):
         super(TransFMSD, self).__init__()
         cnn_blocks_setting = [
@@ -256,11 +253,9 @@ class Transformer_Only(nn.Module):
         return x
 
 
-"""
-class IMSF_Net(nn.Module):
-    # Change this to MSCA_FNet later on, Benchmark model
+class MSCA_FNet_Benchmark(nn.Module):
     def __init__(self, bias_init=None):
-        super(IMSF_Net, self).__init__()
+        super(MSCA_FNet_Benchmark, self).__init__()
         cnn_blocks_setting = [
             # channel, reduction, head_amount
             [32, 2, 4],
@@ -361,8 +356,7 @@ class IMSF_Net(nn.Module):
         x = self.flatten(x)
         x = self.regression_head(x)
         return x
-"""
-#'''
+
 class IMSF_Net(nn.Module):
     # Change this to MSCA_FNet later on
     def __init__(self, bias_init=None):
@@ -377,18 +371,18 @@ class IMSF_Net(nn.Module):
         ]
         patch_blocks_setting = [
             # kernel_size, stride, padding, in_channel, out_channel
-            [3, 2, 1, 48],   # 512 out   # 625
+            [3, 2, 1, 3],   # 512 out   # 625
             [3, 2, 1, 32],                  # 256 out   # 312
             [3, 2, 1, 64],                  # 128_out   # 156
             #[3, 2, 1, 96],
         ]
         transformer_blocks_setting = [
             # patch_amount, reduction, head_amount, mlp_hidden
-            [128, 1, 4, 512],
-            [128, 2, 4, 512],
-            [64, 1, 4, 512],
-            [64, 1, 4, 512],
-            [64, 1, 4, 512],
+            [156, 1, 4, 512],
+            [156, 2, 4, 512],
+            [78, 1, 4, 512],
+            [78, 1, 4, 512],
+            [78, 1, 4, 512],
         ]
         cnn_branch = []
         transformer_branch = []
@@ -447,11 +441,11 @@ class IMSF_Net(nn.Module):
                 #                                    patch_size=SIGNAL_LENGTH // patch_amount,
                 #                                    input_channel=transformer_channel))
                 shift_amount = 16
-                transformer.insert(0, LocalityInvariantShifting([i * (SIGNAL_LENGTH // shift_amount)
-                                                                 for i in range(shift_amount)]))
-                transformer.insert(1, ConvPatchify_Block(patch_blocks_setting, embedding_size))
+                #transformer.insert(0, LocalityInvariantShifting([i * (SIGNAL_LENGTH // shift_amount)
+                #                                                 for i in range(shift_amount)]))
+                transformer.insert(0, ConvPatchify_Block(patch_blocks_setting, embedding_size))
                 #transformer.insert(2, PositionalEncoding(embedding_size))
-                transformer.insert(2, RandomEncoding(patch_amount, embedding_size))
+                #transformer.insert(2, RandomEncoding(patch_amount, embedding_size))
             else:
                 transformer.insert(0, Rearrange('batch embedding patch -> batch patch embedding'))
             if reduction != 1:
@@ -460,15 +454,13 @@ class IMSF_Net(nn.Module):
             transformer = nn.Sequential(*transformer)
             transformer_branch.append(transformer)
 
-            transformer_channel = embedding_size
-
         flatten_branch.append(nn.Sequential(
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
             nn.Dropout(0.1)
         ))
-        regression_channel = 128
 
+        regression_channel = 128
         cnn_feature = SIGNAL_LENGTH
         for i in range(len(transformer_blocks_setting)):
             out_channel, cnn_reduction = cnn_blocks_setting[i]
@@ -478,20 +470,22 @@ class IMSF_Net(nn.Module):
             #"""
             if i != len(transformer_blocks_setting) - 1:
                 fusion = nn.ModuleList([
-                    #ChannelShuffle1D(2),
-                    #GatedConv_Block(out_channel),
-                    #nn.BatchNorm1d(out_channel),
-                    #nn.Sequential(
-                    #   nn.Conv1d(out_channel * 2, out_channel, kernel_size=1),
+                    # ChannelShuffle1D(2),
+                    # GatedConv_Block(out_channel),
+                    # nn.BatchNorm1d(out_channel),
+                    # nn.Sequential(
+                    #    nn.Conv1d(out_channel * 2, out_channel, kernel_size=1),
                     #    nn.BatchNorm1d(out_channel),
-                    #)
-                    #Excitation_Block(out_channel, embedding_size),
-                    #Excitation_Block(embedding_size, out_channel),
-                    #nn.Sequential(
+                    # )
+
+                    # Excitation_Block(out_channel, embedding_size),
+                    # Excitation_Block(embedding_size, out_channel),
+                    # nn.Sequential(
                     #    nn.LazyLinear(128),
                     #    nn.Dropout(0.1),
                     #    nn.ReLU()
-                    #),
+                    # ),
+
                     Downsampling(out_channel, embedding_size, cnn_feature, transformer_feature)
                     if cnn_feature >= transformer_feature
                     else Upsampling(out_channel, embedding_size, cnn_feature, transformer_feature),
@@ -534,15 +528,17 @@ class IMSF_Net(nn.Module):
         self.transformer_branch = nn.ModuleList(transformer_branch)
         self.fusion_branch = nn.ModuleList(fusion_branch)
         self.flatten = nn.ModuleList(flatten_branch)
+        self.feature_dim = 512
+        self.feautre_head = nn.Sequential(
+            nn.LazyLinear(512),
+            nn.Dropout(0.1),
+        )
 
-        regression_head = nn.Linear(512, 2)
+        regression_head = nn.Linear(self.feature_dim, 2)
         if bias_init is not None:
             with torch.no_grad():
                 regression_head.bias.copy_(bias_init)
         self.regression_head = nn.Sequential(
-            nn.LazyLinear(512),
-            nn.Dropout(0.1),
-            nn.ReLU(),
             regression_head,
             nn.ReLU()
         )
@@ -556,13 +552,13 @@ class IMSF_Net(nn.Module):
             cnn_output = self.cnn_branch[i](cnn_output)
             transformer_output = self.transformer_branch[i](transformer_output)
             if i < len(self.fusion_branch) - 1:
-                #temp, t_excitation = self.fusion_branch[i][0](cnn_output, transformer_output)
-                #cnn_output, c_excitation = self.fusion_branch[i][1](transformer_output, cnn_output)
+                # temp, t_excitation = self.fusion_branch[i][0](cnn_output, transformer_output)
+                # cnn_output, c_excitation = self.fusion_branch[i][1](transformer_output, cnn_output)
                 temp = transformer_output + self.fusion_branch[i][0](cnn_output)
                 cnn_output = cnn_output + self.fusion_branch[i][1](transformer_output)
                 transformer_output = temp
-                #t_excitation = self.fusion_branch[i][2](t_excitation)
-                #c_excitation = self.fusion_branch[i][2](c_excitation)
+                # t_excitation = self.fusion_branch[i][2](t_excitation)
+                # c_excitation = self.fusion_branch[i][2](c_excitation)
                 t_excitation = self.fusion_branch[i][2](transformer_output)
                 c_excitation = self.fusion_branch[i][3](cnn_output)
                 mixer_output.append(t_excitation + c_excitation)
@@ -577,305 +573,9 @@ class IMSF_Net(nn.Module):
         #mixer_output = torch.cat(mixer_output, dim=1)
         mixer_output = torch.stack(mixer_output, dim=1).sum(dim=1)
         x = torch.cat((cnn_output, mixer_output, transformer_output), dim=1)
-        x = self.regression_head(x)
-        return x
-#'''
-
-class Transformer_Basic(nn.Module):
-    def __init__(self, bias_init=None):
-        super(Transformer_Basic, self).__init__()
-        self.embedding = nn.Sequential(
-            nn.LazyConv1d(64, kernel_size=1),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2),
-        )
-        self.transformer = nn.Sequential(
-            TransformerEncoder(
-                head_amount=4,
-                embedding_size=64,
-                layer_amount=2,
-                dropout=0.1
-            ),
-            nn.AvgPool1d(kernel_size=64),
-            nn.Flatten(),
-        )
-        BP_regressor = nn.Linear(SIGNAL_LENGTH // 2, 2)
-        if bias_init is not None:
-            with torch.no_grad():
-                BP_regressor.bias.copy_(bias_init)
-        self.regression_head = nn.Sequential(
-            nn.Dropout(0.1),
-            BP_regressor,
-            nn.ReLU()
-        )
-
-    def forward(self, x):
-        x = self.embedding(x['signals'])
-        x = x.permute(0, 2, 1)
-        x = self.transformer(x)
-        x = self.regression_head(x)
-        return x
-
-
-class Transformer_Mixer(nn.Module):
-    def __init__(self, signal_amount=3, layer_amount=2):
-        super(Transformer_Mixer, self).__init__()
-        embedding_block = nn.Sequential(
-            nn.LazyConv1d(64, kernel_size=1),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2),
-        )
-        self.embedding = nn.ModuleList([embedding_block for _ in range(signal_amount)])
-        mixer_block = MHA_MixerBlock(signal_amount=signal_amount,
-                                     sequence_length=SIGNAL_LENGTH // 2,
-                                     embedding_size=64)
-        self.Mixer = nn.Sequential(*[mixer_block for _ in range(layer_amount)])
-        self.regression = nn.Sequential(
-            nn.Flatten(1, 2),
-            nn.AvgPool1d(kernel_size=64),
-            nn.Flatten(),
-            nn.LazyLinear(2),
-            nn.ReLU()
-        )
-
-    def forward(self, x):
-        x = x["signals"].unsqueeze(-1).permute(0, 1, 3, 2)
-        # x shape: (batch_size, signal_amount, embedding_size, sequence_length)
-        embedding_output = []
-        for i in range(len(self.embedding)):
-            embedding_output.append(self.embedding[i](x[:, i]))
-        x = torch.stack(embedding_output, dim=1)
-        del embedding_output
-        x = x.permute(0, 1, 3, 2)
-        # x shape: (batch_size, signal_amount, sequence_length, embedding_size)
-        x = self.Mixer(x)
-        x = self.regression(x)
-        return x
-"""
-class IMSF_Net(nn.Module):
-    # Should be renamed Di_CNN later on
-    def __init__(self):
-        super(IMSF_Net, self).__init__()
-        blocks_setting = [
-            # b1, b2, b3, b4
-            #[16, 16, 16, 16],
-            #[64, 64, 64, 64],
-            # h, l, fu
-            [6, 24, 18],
-            [64, 64, 192],
-        ]
-        modules = []
-        embedding_size = SIGNAL_LENGTH
-        for i in range(len(blocks_setting)):
-            #b1, b2, b3, b4 = blocks_setting[i]
-            #modules.append(DiCNN_Block(b1, b2, b3, b4))
-            h, l, fu = blocks_setting[i]
-            modules.append(ModifiedIMSFBlock(l, h, fu))
-            modules.append(nn.MaxPool1d(2))
-            embedding_size //= 2
-            modules.append(ECA(l + fu))
-            #modules.append(ECA(b1 + b2 + b3 + b4))
-        self.features = nn.Sequential(*modules)
-        self.transformer = TransformerEncoder(
-            head_amount=4,
-            embedding_size=embedding_size,
-            layer_amount=1,
-            dropout=0.1
-        )
-        self.regression = nn.Sequential(
-            nn.AvgPool1d(kernel_size=embedding_size),
-            nn.Flatten(),
-            nn.LazyLinear(2),
-        )
-
-    def forward(self, x):
-        x = x["signals"]
-        x = self.features(x)
-        x = self.transformer(x)
-        x = self.regression(x)
-        return x
-        
-"""
-"""
-class IMSF_Net(nn.Module):
-    def __init__(self):
-        super().__init__()
-        blocks_setting = [
-            # h, l, fu
-            [6, 24, 18],
-            [64, 64, 192],
-        ]
-        modules = []
-        for i in range(len(blocks_setting)):
-            h, l, fu = blocks_setting[i]
-            modules.append(IMSF_Block(l, h, fu))
-            modules.append(nn.MaxPool1d(2))
-            modules.append(ECA(l + fu))
-        self.IMSF = nn.Sequential(*modules)
-        self.cnn = nn.Sequential(
-            nn.LazyConv1d(256, kernel_size=11, padding=5),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-        )
-        self.lstm = nn.LSTM(256, 512, 1)
-        self.regression = nn.Sequential(
-            #nn.AvgPool1d(kernel_size=256),
-            #nn.Flatten(),
-            nn.Linear(512, 2),
-        )
-
-    def forward(self, x):
-        x = x["signals"]
-        x = self.IMSF(x)
-        x = self.cnn(x)
-        x, _ = self.lstm(x)
-        x = x[:, -1]
-        x = self.regression(x)
-        return x
-"""
-class Inception_Transformer(nn.Module):
-    def __init__(self):
-        super(Inception_Transformer, self).__init__()
-        self.conv1by1 = nn.Sequential(
-            nn.LazyConv1d(64 * 1, kernel_size=1),
-            nn.BatchNorm1d(64 * 1),
-            nn.ReLU(),
-            #nn.MaxPool1d(kernel_size=2, stride=2)
-        )
-        self.conv3by3 = nn.Sequential(
-            nn.LazyConv1d(64 * 1, kernel_size=1),
-            nn.BatchNorm1d(64 * 1),
-            nn.ReLU(),
-            nn.LazyConv1d(64 * 1, kernel_size=3, padding=1),
-            nn.BatchNorm1d(64 * 1),
-            nn.ReLU(),
-            #nn.LazyConv1d(64 * 3, kernel_size=1),
-            #nn.BatchNorm1d(64 * 3),
-            #nn.ReLU(),
-            #nn.MaxPool1d(kernel_size=2, stride=2)
-        )
-        self.conv5by5 = nn.Sequential(
-            nn.LazyConv1d(64 * 1, kernel_size=1),
-            nn.BatchNorm1d(64 * 1),
-            nn.ReLU(),
-            nn.LazyConv1d(64 * 1, kernel_size=5, padding=2),
-            nn.BatchNorm1d(64 * 1),
-            nn.ReLU(),
-            #nn.LazyConv1d(64 * 3, kernel_size=1),
-            #nn.BatchNorm1d(64 * 3),
-            #nn.ReLU(),
-            #nn.MaxPool1d(kernel_size=2, stride=2)
-        )
-        self.pool3by3 = nn.Sequential(
-            nn.MaxPool1d(kernel_size=3, stride=1, padding=1),
-            nn.LazyConv1d(64 * 1, kernel_size=1),
-            nn.BatchNorm1d(64 * 1),
-            nn.ReLU(),
-        )
-        self.conv1by1combine = nn.Sequential(
-            nn.LazyConv1d(64 * 4, kernel_size=1),
-            nn.BatchNorm1d(64 * 4),
-            nn.ReLU(),
-            #nn.MaxPool1d(kernel_size=2, stride=2)
-        )
-        self.transformer = TransformerEncoder(
-            head_amount=4,
-            embedding_size=64 * 4,
-            layer_amount=1,
-            dropout=0.1
-        )
-        self.GlobalAvgPool = nn.AvgPool1d(kernel_size=64 * 4)
-        self.regression_head = nn.Sequential(
-            nn.Dropout(0.1),
-            nn.LazyLinear(2),
-            nn.ReLU()
-        )
-
-    def forward(self, x):
-        x1 = self.conv1by1(x)
-        x2 = self.conv3by3(x)
-        x3 = self.conv5by5(x)
-        x4 = self.pool3by3(x)
-        x = torch.cat((x1, x2, x3, x4), 1)
-        x = self.conv1by1combine(x)
-        x = x.permute(0, 2, 1)
-        x = self.transformer(x)
-        x = self.GlobalAvgPool(x)
-        x = x.view(x.size(0), -1)
-        x = self.regression_head(x)
-
-        return x
-
-class Dense_Transformer(nn.Module):
-    def __init__(self):
-        super(Dense_Transformer, self).__init__()
-        self.embedding = nn.Sequential(
-            nn.LazyLinear(1024),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.LazyLinear(1024),
-        )
-        self.transformer = TransformerEncoder(
-            head_amount=8,
-            embedding_size=256,
-            layer_amount=2,
-            dropout=0.1
-        )
-        self.regression_head = nn.Sequential(
-            nn.Dropout(0.1),
-            nn.LazyLinear(2),
-            nn.ReLU()
-        )
-    def forward(self, x):
-        x = x.view(x.size(0), -1)
-        x = self.embedding(x)
-        x = x.view(x.size(0), -1, 256)
-        x = self.transformer(x)
-        x = x.view(x.size(0), -1)
-        x = self.regression_head(x)
-
-        return x
-
-class CNN_Transformer(nn.Module):
-    def __init__(self):
-        super(CNN_Transformer, self).__init__()
-        self.conv1 = nn.Sequential(
-            nn.LazyConv1d(32, kernel_size=5, stride=1, padding=2),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2)
-        )
-        self.conv2 = nn.Sequential(
-            nn.LazyConv1d(64, kernel_size=5, stride=1, padding=2),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2)
-        )
-        self.transformer = TransformerEncoder(
-            head_amount=8,
-            embedding_size=SIGNAL_LENGTH // 4,
-            layer_amount=2,
-            dropout=0.1
-        )
-        self.GlobalAvgPool = nn.AvgPool1d(kernel_size=SIGNAL_LENGTH // 4)
-        self.regression_head = nn.Sequential(
-            nn.Dropout(0.1),
-            nn.LazyLinear(2),
-            nn.ReLU()
-        )
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.transformer(x)
-        x = self.GlobalAvgPool(x)
-        x = x.view(x.size(0), -1)
-        x = self.regression_head(x)
-
-        return x
+        output = self.feautre_head(x)
+        x = self.regression_head(output)
+        return x, output
 
 class CNN_Only(nn.Module):
     def __init__(self, bias_init=None):
@@ -916,8 +616,8 @@ class CNN_Only(nn.Module):
 
         self.cnn_branch = nn.ModuleList(cnn_branch)
         self.flatten = nn.ModuleList(flatten_branch)
-
-        regression_head = nn.Linear(cnn_channel, 2)
+        self.feature_dim = cnn_channel
+        regression_head = nn.Linear(self.feature_dim, 2)
         if bias_init is not None:
             with torch.no_grad():
                 regression_head.bias.copy_(bias_init)
@@ -932,157 +632,41 @@ class CNN_Only(nn.Module):
             cnn_output = self.cnn_branch[i](cnn_output)
         cnn_output = self.flatten[0](cnn_output)
         x = self.regression_head(cnn_output)
-        return x
+        return x, cnn_output
 
-class Inception_Module(nn.Module):
-    def __init__(self, out_channels, shrink_factor=4):
-        super(Inception_Module, self).__init__()
-        self.conv1by1 = nn.Sequential(
-            nn.LazyConv1d(out_channels // shrink_factor, kernel_size=1),
-            nn.BatchNorm1d(out_channels // shrink_factor),
-            nn.ReLU(),
-        )
-        self.conv3by3 = nn.Sequential(
-            nn.LazyConv1d(out_channels // shrink_factor, kernel_size=1),
-            nn.BatchNorm1d(out_channels // shrink_factor),
-            nn.ReLU(),
-            nn.Conv1d(out_channels // shrink_factor, out_channels // shrink_factor, kernel_size=3, padding=1),
-            nn.BatchNorm1d(out_channels // shrink_factor),
-            nn.ReLU(),
-        )
-        self.conv5by5 = nn.Sequential(
-            nn.LazyConv1d(out_channels // shrink_factor, kernel_size=1),
-            nn.BatchNorm1d(out_channels // shrink_factor),
-            nn.ReLU(),
-            nn.Conv1d(out_channels // shrink_factor, out_channels // shrink_factor, kernel_size=3, padding=1),
-            nn.BatchNorm1d(out_channels // shrink_factor),
-            nn.ReLU(),
-            nn.Conv1d(out_channels // shrink_factor, out_channels // shrink_factor, kernel_size=3, padding=1),
-            nn.BatchNorm1d(out_channels // shrink_factor),
-            nn.ReLU(),
-        )
-        self.pool3by3 = nn.Sequential(
-            nn.MaxPool1d(kernel_size=3, stride=1, padding=1),
-            nn.LazyConv1d(out_channels // shrink_factor, kernel_size=1),
-            nn.BatchNorm1d(out_channels // shrink_factor),
-            nn.ReLU(),
-        )
-        self.conv1by1combine = nn.Sequential(
-            nn.Conv1d(out_channels // shrink_factor * 4, out_channels, kernel_size=1),
-            nn.BatchNorm1d(out_channels),
-            nn.ReLU(),
-        )
-
-    def forward(self, x):
-        x1 = self.conv1by1(x)
-        x2 = self.conv3by3(x)
-        x3 = self.conv5by5(x)
-        x4 = self.pool3by3(x)
-        x = torch.cat((x1, x2, x3, x4), 1)
-        x = self.conv1by1combine(x)
-
-        return x
-
-'''
-class Transformer_Only(nn.Module):
-    def __init__(self, bias_init=None, alpha=0.5):
-        super(Transformer_Only, self).__init__()
-        self.alpha = alpha
-        self.embedding = nn.Sequential(
-            nn.LazyConv1d(64, kernel_size=1),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2),
-        )
-        self.transformer = nn.Sequential(
-            SimpleTransformerEncoder(
-                sequence_length=SIGNAL_LENGTH // 2,
-                head_amount=4,
-                embedding_size=64,
-                layer_amount=2,
-                dropout=0.1
-            ),
-            nn.AvgPool1d(kernel_size=64),
-            nn.Flatten(),
-        )
-        self.conv = nn.Sequential(
-            #Inception_Module(128, shrink_factor=16),
-            #nn.AvgPool1d(kernel_size=1024),
-            #nn.Flatten(),
-            #nn.LazyLinear(512),
-            #nn.BatchNorm1d(512),
-            MobileNetV2(output_size=512, input_size=1024, width_mult=1.0),
-        )
-        """
-        self.demographics_embedding = nn.Sequential(
-            #nn.LazyLinear(256),
-            #nn.BatchNorm1d(256),
-            #nn.ReLU(),
-            nn.LazyLinear(512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-        )
-        """
-        BP_regressor = nn.Linear(512,2)
+class Dummy_Model(nn.Module):
+    def __init__(self, bias_init=None):
+        super(Dummy_Model, self).__init__()
+        regression_head = nn.Linear(512, 2)
         if bias_init is not None:
             with torch.no_grad():
-                BP_regressor.bias.copy_(bias_init)
+                regression_head.bias.copy_(bias_init)
         self.regression_head = nn.Sequential(
-            nn.Dropout(0.1),
-            BP_regressor,
-            nn.ReLU()
-        )
-
-    def forward(self, x):
-        #demographics = x['demographics']
-        x_conv = self.conv(x['signals'])
-        x = self.embedding(x['signals'])
-        x = x.permute(0, 2, 1)
-        x = self.transformer(x)
-        #demographics = self.demographics_embedding(demographics)
-        # Element-wise addition of x and demographics
-        #x = x + demographics
-        # Element-wise addition of x and conv scaled by alpha
-        #  x = x * self.alpha + x_conv * (1 - self.alpha)# kinda bad
-        x = x + x_conv
-        x = self.regression_head(x)
-        return x
-'''
-class Dummy_Model(nn.Module):
-    def __init__(self):
-        super(Dummy_Model, self).__init__()
-        self.regresion_head = nn.Sequential(
-            nn.LazyLinear(2),
-            nn.ReLU()
+            nn.LazyLinear(512),
+            nn.ReLU(),
+            nn.LazyLinear(512),
+            nn.ReLU(),
+            nn.LazyLinear(512),
+            nn.ReLU(),
+            regression_head,
         )
 
     def forward(self, x):
         x = x['signals']
         x = x.view(x.size(0), -1)
-        x = self.regresion_head(x)
+        x = self.regression_head(x)
         return x
 
+
+
 if __name__ == '__main__':
-    model = Transformer_Only()
+    model = IMSF_Net()
     x = {
-        'signals': torch.FloatTensor(torch.randn(128, 3, SIGNAL_LENGTH)),
+        'signals': torch.FloatTensor(torch.randn(100, 3, SIGNAL_LENGTH)),
         # 'demographics': torch.FloatTensor(torch.randn(BATCH_SIZE, 3))
         # 'targets': torch.FloatTensor(torch.randn(128, 2))
     }
-    """
-    loss_fn = nn.L1Loss()
-    for param in model.parameters():
-        param.grad = None
-    y_pred = model(x)  # Forward pass
-    loss = loss_fn(y_pred, x['targets'])  # Compute the loss
-    loss.backward()  # Backward pass
 
-    gradient_norm_dict = {}
-    for name, param in model.named_parameters():
-        if param.grad is not None:
-            gradient_norm_dict[name] = param.grad.detach().norm().item()
-    print(gradient_norm_dict)
-    """
     with torch.no_grad():
         print(x)
         y = model(x)

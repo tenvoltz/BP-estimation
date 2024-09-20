@@ -5,16 +5,19 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b97da8ca-1c4d-4aeb-832d-7ad58f650c8a" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/Data/PulseDB/Datasets/create_csv.py" beforeDir="false" />
+      <change afterPath="$PROJECT_DIR$/Scripts/Models/loss.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Data/PulseDB/Datasets/create_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/PulseDB/Datasets/create_dataset.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Data/PulseDB/Datasets/split_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/PulseDB/Datasets/split_data.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Data/UCI/Datasets/analyze_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/UCI/Datasets/analyze_data.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Data/UCI/Datasets/split_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/UCI/Datasets/split_data.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/Rafita/Dataset/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/Rafita/Dataset/create_dataset.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Data/Rafita/Dataset/split_data.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/Models/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/Models/submodules.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/submodules.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/Models/transformer.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/transformer.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/data_loader.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/evaluate_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/evaluate_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/metrics.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/metrics.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/model_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/model_pipeline.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/train_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/train_model.py" afterDir="false" />
     </list>
@@ -91,14 +94,14 @@
       <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Scripts\Datasets" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\_Deprecated" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Outputs" />
+      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Output-Old" />
       <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\UCI\raw_dataset\dataset_all_minmax_removeOORSegment_detectpeak_cheby2_noHRcheck_SegmentRandom" />
       <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\PulseDB\Dataset_Files" />
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\PulseDB\Dataset_Files\Rename_Later" />
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\PulseDB\Dataset_Files\dataset_100240_CalBased_1" />
-      <recent name="C:\Users\jaria092\PycharmProjects\BP-estimation\Data\PulseDB\Dataset_Files\dataset_30000_CalBased_0.2" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.create_dataset">
+  <component name="RunManager" selected="Python.model_pipeline">
     <configuration default="true" type="PythonConfigurationType" factoryName="Python">
       <module name="BP-estimation" />
       <option name="ENV_FILES" value="" />
@@ -124,39 +127,6 @@
         </ENTRIES>
       </EXTENSION>
       <option name="SCRIPT_NAME" value="" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="analyze_data" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="BP-estimation" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="SDK_NAME" value="MachineLearning" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Data/UCI/Datasets" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="net.ashald.envfile">
-        <option name="IS_ENABLED" value="true" />
-        <option name="IS_SUBST" value="false" />
-        <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
-        <option name="IS_IGNORE_MISSING_FILES" value="false" />
-        <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
-        <ENTRIES>
-          <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
-        </ENTRIES>
-      </EXTENSION>
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Data/UCI/Datasets/analyze_data.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -198,6 +168,39 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="data_loader" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="BP-estimation" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="SDK_NAME" value="MachineLearning" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Scripts" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="net.ashald.envfile">
+        <option name="IS_ENABLED" value="true" />
+        <option name="IS_SUBST" value="false" />
+        <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
+        <option name="IS_IGNORE_MISSING_FILES" value="false" />
+        <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
+        <ENTRIES>
+          <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
+        </ENTRIES>
+      </EXTENSION>
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Scripts/data_loader.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="model_pipeline" type="PythonConfigurationType" factoryName="Python" singleton="false" temporary="true" nameIsGenerated="true">
       <module name="BP-estimation" />
       <option name="ENV_FILES" value="" />
@@ -222,39 +225,6 @@
         </ENTRIES>
       </EXTENSION>
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Scripts/model_pipeline.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="split_data (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="BP-estimation" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="SDK_NAME" value="MachineLearning" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Data/UCI/Datasets" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="net.ashald.envfile">
-        <option name="IS_ENABLED" value="true" />
-        <option name="IS_SUBST" value="false" />
-        <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
-        <option name="IS_IGNORE_MISSING_FILES" value="false" />
-        <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
-        <ENTRIES>
-          <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
-        </ENTRIES>
-      </EXTENSION>
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Data/UCI/Datasets/split_data.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -296,20 +266,53 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="train_model" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="BP-estimation" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="SDK_NAME" value="MachineLearning" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Scripts" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="net.ashald.envfile">
+        <option name="IS_ENABLED" value="true" />
+        <option name="IS_SUBST" value="false" />
+        <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
+        <option name="IS_IGNORE_MISSING_FILES" value="false" />
+        <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
+        <ENTRIES>
+          <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
+        </ENTRIES>
+      </EXTENSION>
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Scripts/train_model.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <list>
+      <item itemvalue="Python.data_loader" />
+      <item itemvalue="Python.train_model" />
       <item itemvalue="Python.create_dataset" />
       <item itemvalue="Python.split_data" />
-      <item itemvalue="Python.split_data (1)" />
       <item itemvalue="Python.model_pipeline" />
-      <item itemvalue="Python.analyze_data" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.create_dataset" />
         <item itemvalue="Python.model_pipeline" />
+        <item itemvalue="Python.train_model" />
+        <item itemvalue="Python.data_loader" />
         <item itemvalue="Python.split_data" />
-        <item itemvalue="Python.split_data (1)" />
-        <item itemvalue="Python.analyze_data" />
+        <item itemvalue="Python.create_dataset" />
       </list>
     </recent_temporary>
   </component>

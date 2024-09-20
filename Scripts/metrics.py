@@ -51,7 +51,7 @@ def BHS_STANDARD(leq5, leq10, leq15):
     else:
         return 'D'
 
-def evaluate_metrics(y_true, y_pred):
+def evaluate_metrics(y_pred, y_true):
     sbp_MAD = mean_absolute_difference(y_true[:, 0], y_pred[:, 0])
     dbp_MAD = mean_absolute_difference(y_true[:, 1], y_pred[:, 1])
     sbp_MD = mean_difference(y_true[:, 0], y_pred[:, 0])
@@ -149,106 +149,92 @@ def evaluate_metrics(y_true, y_pred):
 
     return ieee_fig, aami_fig, bhs_fig, sample_fig
 
-def evaluate_classifier(y_true, y_pred):
-    # Create confusion matrix
-    confusion_matrix = np.zeros((2, 2))
-    for i in range(len(y_true)):
-        confusion_matrix[y_true[i], round(y_pred[i])] += 1
+def plot_histogram(y_preds, y_test):
+    # Make histograms of the predictions and true values
+    hist_fig, ax = plt.subplots(2, 1, figsize=(10, 10))
+    ax[0].hist(y_preds[:, 0], bins=50, alpha=0.5, label='SBP', color='#F8CECC', density=True)
+    # ax[0].hist(y_test[:, 0], bins=50, alpha=0.5, label='SBP True', color='green', density = True)
+    ax[0].legend()
+    ax[0].set_title('SBP Histogram')
+    ax[1].hist(y_preds[:, 1], bins=50, alpha=0.5, label='DBP', color='#DAE8FC', density=True)
+    # ax[1].hist(y_test[:, 1], bins=50, alpha=0.5, label='DBP True', color='green', density = True)
+    ax[1].legend()
+    ax[1].set_title('DBP Histogram')
+    return hist_fig
 
-    # Calculate accuracy
-    accuracy = np.sum(np.diag(confusion_matrix)) / np.sum(confusion_matrix)
+def plot_bland_altman(y_preds, y_test):
+    # Create a Bland-Altman plot of SBP and DBP where x is mean and y is difference
+    bland_altman_fig, ax = plt.subplots(2, 1, figsize=(10, 10))
+    sbp_diff = y_preds[:, 0] - y_test[:, 0]
+    dbp_diff = y_preds[:, 1] - y_test[:, 1]
+    sbp_mean = (y_preds[:, 0] + y_test[:, 0]) / 2
+    dbp_mean = (y_preds[:, 1] + y_test[:, 1]) / 2
+    ax[0].scatter(sbp_mean, sbp_diff, color='#F8CECC', s=20)
+    ax[0].set_title('SBP Bland-Altman Plot')
+    ax[1].scatter(dbp_mean, dbp_diff, color='#DAE8FC', s=20)
+    ax[1].set_title('DBP Bland-Altman Plot')
+    # Add mean line and 95% limits of agreement
+    sbp_mean_diff = np.mean(sbp_diff)
+    sbp_std_diff = np.std(sbp_diff)
+    dbp_mean_diff = np.mean(dbp_diff)
+    dbp_std_diff = np.std(dbp_diff)
+    sbp_upper_limit = sbp_mean_diff + 1.96 * sbp_std_diff
+    sbp_lower_limit = sbp_mean_diff - 1.96 * sbp_std_diff
+    dbp_upper_limit = dbp_mean_diff + 1.96 * dbp_std_diff
+    dbp_lower_limit = dbp_mean_diff - 1.96 * dbp_std_diff
 
-    # Create matplotlib table for the metrics
-    conf_fig, ax = plt.subplots(figsize=(6, 5))
-    classes = ['Healthy', 'Unhealthy']
-    sns.set(font_scale=1.2)
-    sns.heatmap(confusion_matrix, annot=True, fmt='.0f', cmap='Blues', cbar=True,
-                xticklabels=classes, yticklabels=classes)
+    # Add mean line and 95% limits of agreement with labels
+    ax[0].axhline(sbp_mean_diff, color='red', linestyle='-',
+                  label=f'Mean difference ({sbp_mean_diff:.2f})')
+    ax[0].axhline(sbp_upper_limit, color='black', linestyle='--',
+                  label=f'Upper 95% LoA ({sbp_upper_limit:.2f})')
+    ax[0].axhline(sbp_lower_limit, color='black', linestyle='--',
+                  label=f'Lower 95% LoA ({sbp_lower_limit:.2f})')
 
-    # Add labels, title, and ticks
-    plt.xlabel('Predicted Labels')
-    plt.ylabel('True Labels')
-    plt.title(f'Confusion Matrix with Accuracy of {accuracy * 100:.2f}%')
+    ax[1].axhline(dbp_mean_diff, color='blue', linestyle='-',
+                  label=f'Mean difference ({dbp_mean_diff:.2f})')
+    ax[1].axhline(dbp_upper_limit, color='black', linestyle='--',
+                  label=f'Upper 95% LoA ({dbp_upper_limit:.2f})')
+    ax[1].axhline(dbp_lower_limit, color='black', linestyle='--',
+                  label=f'Lower 95% LoA ({dbp_lower_limit:.2f})')
+    ax[0].legend(loc='upper right')
+    ax[1].legend(loc='upper right')
+    ax[0].set_xlabel('Mean of SBP (mmHg)')
+    ax[0].set_ylabel('Difference of SBP (mmHg)')
+    ax[1].set_xlabel('Mean of DBP (mmHg)')
+    ax[1].set_ylabel('Difference of DBP (mmHg)')
+    plt.tight_layout()
+    plt.subplots_adjust(hspace=0.3)
 
-    # Plotting ROC curve
-    tpr_values, fpr_values = calculate_roc_curve(y_true, y_pred)
-    roc_fig, ax = plt.subplots(figsize=(6, 6))
+    return bland_altman_fig
 
-    plt.plot(fpr_values, tpr_values, color='b', lw=2, label='ROC Curve')
-    plt.plot([0, 1], [0, 1], color='gray', linestyle='--', lw=2, label='Random Guess')
+def plot_error_histogram(y_preds, y_test):
+    # Make histogram of error
+    error = y_preds - y_test
+    hist_error_fig, ax = plt.subplots(2, 1, figsize=(10, 10))
+    ax[0].hist(error[:, 0], bins=50, alpha=0.5, label='SBP Error', color='red')
+    ax[0].legend()
+    ax[0].set_title('SBP Error Histogram')
+    ax[1].hist(error[:, 1], bins=50, alpha=0.5, label='DBP Error', color='blue')
+    ax[1].legend()
+    ax[1].set_title('DBP Error Histogram')
+    return hist_error_fig
 
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate (FPR)')
-    plt.ylabel('True Positive Rate (TPR)')
-    plt.title('Receiver Operating Characteristic (ROC) Curve')
-    plt.legend(loc='lower right')
-    plt.grid(True)
-
-    return conf_fig, roc_fig
-
-
-def calculate_roc_curve(y_true, y_pred):
-    # Sort predictions by descending order of scores
-    sorted_indices = np.argsort(y_pred)[::-1]
-    y_true_sorted = y_true[sorted_indices]
-    y_scores_sorted = y_pred[sorted_indices]
-
-    # Initialize lists to store TPR and FPR values
-    tpr_values = []
-    fpr_values = []
-
-    # Calculate total number of positive and negative examples
-    num_positive = np.sum(y_true == 1)
-    num_negative = np.sum(y_true == 0)
-
-    # Initialize counts of true positive (TP) and false positive (FP)
-    tp_count = 0
-    fp_count = 0
-
-    # Iterate through sorted scores to compute TPR and FPR
-    for i in range(len(y_scores_sorted)):
-        if y_true_sorted[i] == 1:
-            tp_count += 1
-        else:
-            fp_count += 1
-
-        tpr = tp_count / num_positive
-        fpr = fp_count / num_negative
-
-        tpr_values.append(tpr)
-        fpr_values.append(fpr)
-
-    return tpr_values, fpr_values
+def plot_top_5_error_signals(y_preds, y_test, test_dataset):
+    # Get the top 5 errors
+    error = y_preds - y_test
+    top_10_error = np.argsort(np.abs(error.sum(axis=1)))[-5:]
+    # Draw the ppg signals
+    ppg_error_fig, ax = plt.subplots(5, 1, figsize=(10, 20))
+    for i, idx in enumerate(top_10_error):
+        ppg = test_dataset.inputs[idx]['signals'][0]
+        ax[i].plot(ppg)
+        ax[i].set_title(f'PPG Signal {idx} with error {error[idx]}')
+    plt.tight_layout()
 
 if __name__ == '__main__':
-    y_true = np.random.rand(100, 1).round()
-    y_pred = np.random.rand(100, 1).round()
-    conf_fig, roc_fig = evaluate_classifier(y_true, y_pred)
+    y_true = np.random.rand(100, 2)
+    y_pred = np.random.rand(100, 2)
+    ieee_fig, aami_fig, bhs_fig, sample_fig = evaluate_metrics(y_true, y_pred)
     plt.show()
 
-    # ieee_fig, aami_fig, bhs_fig, sample_fig = evaluate_metrics(y_true, y_pred)
-    # plt.show()
-
-"""
-print('----------------------------------------------------------')
-    print('|     | <= 5mmHg | <=10mmHg | <=15mmHg | BHS Grade |')
-    print('----------------------------------------------------------')
-    print('| DBP |  {:.1f} %  |  {:.1f} %  |  {:.1f} %  |    {}    '.format(sbp_leq5, sbp_leq10, sbp_leq15, sbp_BHS))
-    print('| SBP |  {:.1f} %  |  {:.1f} %  |  {:.1f} %  |    {}    '.format(dbp_leq5, dbp_leq10, dbp_leq15, dbp_BHS))
-    print('----------------------------------------------------------')
-
-    print('----------------------------------------')
-    print('|     |  ME   |  STD  | AAMI Grade |')
-    print('----------------------------------------')
-    print('| DBP | {:.2f} | {:.2f} |     {}     '.format(dbp_MD, dbp_SDE, dbp_AAMI))
-    print('| SBP | {:.2f} | {:.2f} |     {}     '.format(sbp_MD, sbp_SDE, sbp_AAMI))
-    print('----------------------------------------')
-
-    print('----------------------------------------')
-    print('|     |  MAD  | IEEE Grade |')
-    print('----------------------------------------')
-    print('| DBP | {:.2f} |     {}     '.format(dbp_MAD, dbp_IEEE))
-    print('| SBP | {:.2f} |     {}     '.format(sbp_MAD, sbp_IEEE))
-    print('----------------------------------------')
-"""

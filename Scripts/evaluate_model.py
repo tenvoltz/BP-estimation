@@ -10,7 +10,7 @@ from torchvision import transforms
 from scipy.stats import boxcox
 
 from helper import *
-from metrics import evaluate_metrics
+from metrics import *
 from Models import models
 from data_loader import *
 
@@ -46,28 +46,14 @@ def evaluate_model(writer=None, model_path=OUTPUTS_PATH, version=MODEL_VERSION, 
     print(f"########################## Evaluating model for fold {version} ##########################")
 
     data = pickle.load(open(os.path.join(FOLDED_DATASET_PATH, f'stats_{version}.pkl'), 'rb'))
-    if OUTPUT_NORMALIZED:
-        min_sbp = data['min_sbp']
-        max_sbp = data['max_sbp']
-        min_dbp = data['min_dbp']
-        max_dbp = data['max_dbp']
+    min_sbp = data['min_sbp']
+    max_sbp = data['max_sbp']
+    min_dbp = data['min_dbp']
+    max_dbp = data['max_dbp']
 
     # Load the test dataset
     file_name = f'cal_{version}.pkl' if CALIBRATION_FREE else f'test.pkl' if test_mode else f'val_{version}.pkl'
-    if DATASET_NAME == 'PulseDB':
-        test_dataset = PulseDBDataset(os.path.join(FOLDED_DATASET_PATH, file_name),
-                                      signals=SIGNALS_LIST,
-                                      demographics=DEMOGRAPHICS_LIST,
-                                      targets=TARGETS_LIST,
-                                      transform=transforms.Compose([Trim(SIGNAL_LENGTH, TrimMethod.START),
-                                                                    Tensorize()]))
-    elif DATASET_NAME == 'UCI':
-        test_dataset = UCIDataset(os.path.join(FOLDED_DATASET_PATH, file_name),
-                                  signals=SIGNALS_LIST,
-                                  targets=TARGETS_LIST,
-                                  transform=transforms.Compose([Tensorize()]))
-    else:
-        raise ValueError(f'Unknown dataset name: {DATASET_NAME}')
+    test_dataset = load_test_dataset(file_name)
     test_loader = Data.DataLoader(
         dataset=test_dataset,
         batch_size=BATCH_SIZE,
@@ -84,8 +70,7 @@ def evaluate_model(writer=None, model_path=OUTPUTS_PATH, version=MODEL_VERSION, 
     with torch.no_grad():
         for batch in tqdm(test_loader, desc='Testing'):
             if IS_CUDA:
-                for key in batch['inputs']:
-                    batch['inputs'][key] = batch['inputs'][key].cuda()
+                batch['inputs'] = {key: tensor.cuda() for key, tensor in batch['inputs'].items()}
             y_pred = model(batch['inputs'])
             if OUTPUT_NORMALIZED:
                 # Denormalize the output
@@ -99,150 +84,11 @@ def evaluate_model(writer=None, model_path=OUTPUTS_PATH, version=MODEL_VERSION, 
     # Evaluate the model
     y_preds = y_preds.numpy()
     y_test = test_dataset.targets
-    ieee_fig, aami_fig, bhs_fig, sample_fig = evaluate_metrics(y_test, y_preds)
-
-    """
-    max_pred_sbp = np.max(y_preds[:, 0])
-    min_pred_sbp = np.min(y_preds[:, 0])
-    max_pred_dbp = np.max(y_preds[:, 1])
-    min_pred_dbp = np.min(y_preds[:, 1])
-    print(f"SBP: {min_pred_sbp} - {max_pred_sbp}")
-    print(f"DBP: {min_pred_dbp} - {max_pred_dbp}")
-
-    assert len(y_test) == len(y_preds)
-    print(f"Number of samples: {len(y_test)}")
-    print(f"Number of predictions: {len(y_preds)}")
-
-    # Check for invalid predictions
-    invalid_preds = np.where(np.isnan(y_preds))
-    print(f"Invalid predictions: {len(invalid_preds[0])}")
-    if len(invalid_preds[0]) > 0:
-        print(f"Invalid predictions: {y_preds[invalid_preds]}")
-
-    # Check for invalid dbp predictions like nan
-    invalid_dbp_preds = np.where(np.isnan(y_preds[:, 1]))
-    print(f"Invalid DBP predictions: {len(invalid_dbp_preds[0])}")
-    if len(invalid_dbp_preds[0]) > 0:
-        print(f"Invalid DBP predictions: {y_preds[invalid_dbp_preds]}")
-    """
-    # Make histograms of the predictions and true values
-    hist_fig, ax = plt.subplots(2, 1, figsize=(10, 10))
-    ax[0].hist(y_preds[:, 0], bins=50, alpha=0.5, label='SBP', color='#F8CECC', density = True)
-    #ax[0].hist(y_test[:, 0], bins=50, alpha=0.5, label='SBP True', color='green', density = True)
-    ax[0].legend()
-    ax[0].set_title('SBP Histogram')
-    ax[1].hist(y_preds[:, 1], bins=50, alpha=0.5, label='DBP', color='#DAE8FC', density = True)
-    #ax[1].hist(y_test[:, 1], bins=50, alpha=0.5, label='DBP True', color='green', density = True)
-    ax[1].legend()
-    ax[1].set_title('DBP Histogram')
-    """
-    # Log-transform the histograms
-    y_test_log = np.log2(y_test)
-    y_preds_log = np.log2(y_preds)
-    hist_fig2, ax = plt.subplots(2, 1, figsize=(10, 10))
-    ax[0].hist(y_preds_log[:, 0], bins=50, alpha=0.5, label='SBP', color='red', density=True)
-    ax[0].hist(y_test_log[:, 0], bins=50, alpha=0.5, label='SBP True', color='green', density=True)
-    ax[0].legend()
-    ax[0].set_title('SBP Histogram 2')
-    ax[1].hist(y_preds_log[:, 1], bins=50, alpha=0.5, label='DBP', color='blue', density=True)
-    ax[1].hist(y_test_log[:, 1], bins=50, alpha=0.5, label='DBP True', color='green', density=True)
-    ax[1].legend()
-    ax[1].set_title('DBP Histogram 2')
-    # Sqrt-transform the histograms
-    y_test_sqrt = np.sqrt(y_test)
-    y_preds_sqrt = np.sqrt(y_preds)
-    hist_fig3, ax = plt.subplots(2, 1, figsize=(10, 10))
-    ax[0].hist(y_preds_sqrt[:, 0], bins=50, alpha=0.5, label='SBP', color='red', density=True)
-    ax[0].hist(y_test_sqrt[:, 0], bins=50, alpha=0.5, label='SBP True', color='green', density=True)
-    ax[0].legend()
-    ax[0].set_title('SBP Histogram 3')
-    ax[1].hist(y_preds_sqrt[:, 1], bins=50, alpha=0.5, label='DBP', color='blue', density=True)
-    ax[1].hist(y_test_sqrt[:, 1], bins=50, alpha=0.5, label='DBP True', color='green', density=True)
-    ax[1].legend()
-    ax[1].set_title('DBP Histogram 3')
-    # Box-Cox transform the histograms for sbp and dbp separately
-    y_test_boxcox_sbp, y_test_lmbda_sbp = boxcox(y_test[:, 0])
-    y_preds_boxcox_sbp = boxcox(y_preds[:, 0], y_test_lmbda_sbp)
-    y_test_boxcox_dbp = boxcox(y_test[:, 1], -3)
-    y_preds_boxcox_dbp = boxcox(y_preds[:, 1], -3)
-    hist_fig4, ax = plt.subplots(2, 1, figsize=(10, 10))
-    ax[0].hist(y_preds_boxcox_sbp, bins=50, alpha=0.5, label=f'SBP with lambda: {y_test_lmbda_sbp}', color='red')
-    ax[0].hist(y_test_boxcox_sbp, bins=50, alpha=0.5, label=f'SBP True with lambda: {y_test_lmbda_sbp}', color='green')
-    ax[0].legend()
-    ax[0].set_title(f'SBP Histogram 4')
-    ax[1].hist(y_preds_boxcox_dbp, bins=50, alpha=0.5, label=f'DBP with lambda: {-3}', color='blue')
-    ax[1].hist(y_test_boxcox_dbp, bins=50, alpha=0.5, label=f'DBP True with lambda: {-3}', color='green')
-    ax[1].legend()
-    ax[1].set_title(f'DBP Histogram 4')
-    print(y_preds_boxcox_dbp[:10])
-    print(y_test_boxcox_dbp[:10])
-    # Assign box cox sbp and dbp
-    y_preds = np.concatenate((y_preds_boxcox_sbp.reshape(-1, 1), y_preds_boxcox_dbp.reshape(-1, 1)), axis=1)
-    y_test = np.concatenate((y_test_boxcox_sbp.reshape(-1, 1), y_test_boxcox_dbp.reshape(-1, 1)), axis=1)
-    """
-    # Create a Bland-Altman plot of SBP and DBP where x is mean and y is difference
-    bland_altman_fig, ax = plt.subplots(2, 1, figsize=(10, 10))
-    sbp_diff = y_preds[:, 0] - y_test[:, 0]
-    dbp_diff = y_preds[:, 1] - y_test[:, 1]
-    sbp_mean = (y_preds[:, 0] + y_test[:, 0]) / 2
-    dbp_mean = (y_preds[:, 1] + y_test[:, 1]) / 2
-    ax[0].scatter(sbp_mean, sbp_diff, color='#F8CECC', s=20)
-    ax[0].set_title('SBP Bland-Altman Plot')
-    ax[1].scatter(dbp_mean, dbp_diff, color='#DAE8FC', s=20)
-    ax[1].set_title('DBP Bland-Altman Plot')
-    # Add mean line and 95% limits of agreement
-    sbp_mean_diff = np.mean(sbp_diff)
-    sbp_std_diff = np.std(sbp_diff)
-    dbp_mean_diff = np.mean(dbp_diff)
-    dbp_std_diff = np.std(dbp_diff)
-    sbp_upper_limit = sbp_mean_diff + 1.96 * sbp_std_diff
-    sbp_lower_limit = sbp_mean_diff - 1.96 * sbp_std_diff
-    dbp_upper_limit = dbp_mean_diff + 1.96 * dbp_std_diff
-    dbp_lower_limit = dbp_mean_diff - 1.96 * dbp_std_diff
-
-    # Add mean line and 95% limits of agreement with labels
-    ax[0].axhline(sbp_mean_diff, color='red', linestyle='-',
-                  label=f'Mean difference ({sbp_mean_diff:.2f})')
-    ax[0].axhline(sbp_upper_limit, color='black', linestyle='--',
-                  label=f'Upper 95% LoA ({sbp_upper_limit:.2f})')
-    ax[0].axhline(sbp_lower_limit, color='black', linestyle='--',
-                  label=f'Lower 95% LoA ({sbp_lower_limit:.2f})')
-
-    ax[1].axhline(dbp_mean_diff, color='blue', linestyle='-',
-                  label=f'Mean difference ({dbp_mean_diff:.2f})')
-    ax[1].axhline(dbp_upper_limit, color='black', linestyle='--',
-                  label=f'Upper 95% LoA ({dbp_upper_limit:.2f})')
-    ax[1].axhline(dbp_lower_limit, color='black', linestyle='--',
-                  label=f'Lower 95% LoA ({dbp_lower_limit:.2f})')
-    ax[0].legend(loc='upper right')
-    ax[1].legend(loc='upper right')
-    ax[0].set_xlabel('Mean of SBP (mmHg)')
-    ax[0].set_ylabel('Difference of SBP (mmHg)')
-    ax[1].set_xlabel('Mean of DBP (mmHg)')
-    ax[1].set_ylabel('Difference of DBP (mmHg)')
-    plt.tight_layout()
-    plt.subplots_adjust(hspace=0.3)
-
-    # Make histogram of error
-    error = y_preds - y_test
-    hist_error_fig, ax = plt.subplots(2, 1, figsize=(10, 10))
-    ax[0].hist(error[:, 0], bins=50, alpha=0.5, label='SBP Error', color='red')
-    ax[0].legend()
-    ax[0].set_title('SBP Error Histogram')
-    ax[1].hist(error[:, 1], bins=50, alpha=0.5, label='DBP Error', color='blue')
-    ax[1].legend()
-    ax[1].set_title('DBP Error Histogram')
-
-    # Get the top 5 errors
-    top_10_error = np.argsort(np.abs(error.sum(axis=1)))[-5:]
-    # Draw the ppg signals
-    ppg_error_fig, ax = plt.subplots(5, 1, figsize=(10, 20))
-    for i, idx in enumerate(top_10_error):
-        ppg = test_dataset.inputs[idx]['signals'][0]
-        ax[i].plot(ppg)
-        ax[i].set_title(f'PPG Signal {idx} with error {error[idx]}')
-    plt.tight_layout()
-
+    ieee_fig, aami_fig, bhs_fig, sample_fig = evaluate_metrics(y_preds, y_test)
+    hist_fig = plot_histogram(y_preds, y_test)
+    bland_altman_fig = plot_bland_altman(y_preds, y_test)
+    hist_error_fig = plot_error_histogram(y_preds, y_test)
+    ppg_error_fig = plot_top_5_error_signals(y_preds, y_test, test_dataset)
 
     if writer is not None:
         writer.add_figure('IEEE', ieee_fig)

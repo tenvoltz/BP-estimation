@@ -34,7 +34,7 @@ LIST_OF_MODEL_NAMES = [name for name, obj in inspect.getmembers(models)
 
 outputs_path = os.path.join(OUTPUTS_PATH, f'{MODEL}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}')
 
-def setup_layout(best_fold_id=0):
+def setup_layout():
     layout = {}
     for model in LIST_OF_MODEL_NAMES:
         layout[model] = {}

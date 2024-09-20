@@ -10,7 +10,7 @@ ENV_PATH = os.getenv('ENV_PATH')
 load_dotenv(os.path.join(ENV_PATH))
 
 SIGNAL_LENGTH = int(os.getenv('SAMPLES_PER_SEGMENT'))
-DATASET_PATH = os.getenv('DATASET_PATH')
+CURRENT_DATASET_PATH = os.getenv('CURRENT_DATASET_PATH')
 FOLDED_DATASET_PATH = os.getenv('FOLDED_DATASET_PATH')
 
 MAX_SEGMENT_AMOUNT = int(os.getenv('MAX_SEGMENT_AMOUNT'))
@@ -21,7 +21,7 @@ OUTPUT_NORMALIZED = os.getenv('OUTPUT_NORMALIZED').lower() == 'true'
 CALIBRATION_FREE = os.getenv('CALIBRATION_FREE').lower() == 'true'
 
 def fold_data():
-    dataset_path = os.path.join(DATASET_PATH, 'dataset.hdf5')
+    dataset_path = os.path.join(CURRENT_DATASET_PATH, 'dataset_train.hdf5')
     if not os.path.isfile(dataset_path):
         print('Dataset file not found')
         return
@@ -32,7 +32,7 @@ def fold_data():
 
     for fold_id in tqdm(range(FOLD_AMOUNT), desc='Folding Data'):
         # Load the dataset
-        f = h5py.File(os.path.join(DATASET_PATH, 'dataset.hdf5'), 'r')
+        f = h5py.File(os.path.join(CURRENT_DATASET_PATH, 'dataset_train.hdf5'), 'r')
         segment_amount = len(f['signals']['ppg'])
         if segment_amount > MAX_SEGMENT_AMOUNT and MAX_SEGMENT_AMOUNT != -1:
             segment_amount = MAX_SEGMENT_AMOUNT
@@ -49,6 +49,7 @@ def fold_data():
 
         sbps = f['targets']['sbp'][:segment_amount]
         dbps = f['targets']['dbp'][:segment_amount]
+        subjects = f['targets']['subject'][:segment_amount]
 
         validation_starts = {}
         for i in range(FOLD_AMOUNT):
@@ -61,14 +62,14 @@ def fold_data():
         }, 'demographics': {
             'age': [], 'gender': [], 'height': [], 'weight': [], 'bmi': []
         }, 'targets': {
-            'sbp': [], 'dbp': []
+            'sbp': [], 'dbp': [], 'subject': []
         }}
         data_val = {'signals': {
             'ppg': [], 'vpg': [], 'apg': []
         }, 'demographics': {
             'age': [], 'gender': [], 'height': [], 'weight': [], 'bmi': []
         }, 'targets': {
-            'sbp': [], 'dbp': []
+            'sbp': [], 'dbp': [], 'subject': []
         }}
 
         validation_start = validation_starts[fold_id]
@@ -97,6 +98,7 @@ def fold_data():
             data_train['demographics']['bmi'].append(bmis[i])
             data_train['targets']['sbp'].append(sbps[i])
             data_train['targets']['dbp'].append(dbps[i])
+            data_train['targets']['subject'].append(subjects[i])
 
             max_ppg, min_ppg = max(max_ppg, max(ppgs[i])), min(min_ppg, min(ppgs[i]))
             max_vpg, min_vpg = max(max_vpg, max(vpgs[i])), min(min_vpg, min(vpgs[i]))
@@ -120,6 +122,7 @@ def fold_data():
             data_val['demographics']['bmi'].append(bmis[i])
             data_val['targets']['sbp'].append(sbps[i])
             data_val['targets']['dbp'].append(dbps[i])
+            data_val['targets']['subject'].append(subjects[i])
         for i in tqdm(range(validation_end, segment_amount), desc=f'Fold {fold_id} - Training Data (right)'):
             # min-max normalize each segment
             ppg_temp = (ppgs[i] - np.min(ppgs[i])) / (np.max(ppgs[i]) - np.min(ppgs[i]))
@@ -136,6 +139,7 @@ def fold_data():
             data_train['demographics']['bmi'].append(bmis[i])
             data_train['targets']['sbp'].append(sbps[i])
             data_train['targets']['dbp'].append(dbps[i])
+            data_train['targets']['subject'].append(subjects[i])
 
             max_ppg, min_ppg = max(max_ppg, max(ppgs[i])), min(min_ppg, min(ppgs[i]))
             max_vpg, min_vpg = max(max_vpg, max(vpgs[i])), min(min_vpg, min(vpgs[i]))
@@ -146,6 +150,8 @@ def fold_data():
 
         f.close()
         del f
+
+        ############################## Training Data ########################################
 
         # Convert to numpy arrays
         for key in data_train['signals'].keys():
@@ -160,13 +166,12 @@ def fold_data():
         #data_train['signals']['apg'] = (data_train['signals']['apg'] - min_apg) / (max_apg - min_apg)
 
         # Z-score Normalize PPG, VPG, and APG
-        mean_ppg = np.mean(data_train['signals']['ppg'])
-        std_ppg = np.std(data_train['signals']['ppg'])
-        mean_vpg = np.mean(data_train['signals']['vpg'])
-        std_vpg = np.std(data_train['signals']['vpg'])
-        mean_apg = np.mean(data_train['signals']['apg'])
-        std_apg = np.std(data_train['signals']['apg'])
-
+        # mean_ppg = np.mean(data_train['signals']['ppg'])
+        # std_ppg = np.std(data_train['signals']['ppg'])
+        # mean_vpg = np.mean(data_train['signals']['vpg'])
+        # std_vpg = np.std(data_train['signals']['vpg'])
+        # mean_apg = np.mean(data_train['signals']['apg'])
+        # std_apg = np.std(data_train['signals']['apg'])
         #data_train['signals']['ppg'] = (data_train['signals']['ppg'] - mean_ppg) / std_ppg
         #data_train['signals']['vpg'] = (data_train['signals']['vpg'] - mean_vpg) / std_vpg
         #data_train['signals']['apg'] = (data_train['signals']['apg'] - mean_apg) / std_apg
@@ -203,6 +208,8 @@ def fold_data():
         pickle.dump(data_train, open(os.path.join(FOLDED_DATASET_PATH, f'train_{fold_id}.pkl'), 'wb'))
 
         del data_train
+
+        ############################## Validation Data ########################################
 
         # Convert to numpy arrays
         for key in data_val['signals'].keys():
@@ -252,90 +259,90 @@ def fold_data():
 
         print(f'\nThis calibration-based folds contains {segment_amount} segments')
 
-        if CALIBRATION_FREE:
-            f = h5py.File(os.path.join(DATASET_PATH, 'dataset_cal.hdf5'), 'r')
-            segment_amount = len(f['signals']['ppg'])
-            if segment_amount > MAX_SEGMENT_AMOUNT and MAX_SEGMENT_AMOUNT != -1:
-                segment_amount = MAX_SEGMENT_AMOUNT
+        f = h5py.File(os.path.join(CURRENT_DATASET_PATH, 'dataset_cal.hdf5'), 'r')
+        segment_amount = len(f['signals']['ppg'])
+        if segment_amount > MAX_SEGMENT_AMOUNT and MAX_SEGMENT_AMOUNT != -1:
+            segment_amount = MAX_SEGMENT_AMOUNT
 
-            ppgs = f['signals']['ppg'][:segment_amount]
-            vpgs = f['signals']['vpg'][:segment_amount]
-            apgs = f['signals']['apg'][:segment_amount]
+        ppgs = f['signals']['ppg'][:segment_amount]
+        vpgs = f['signals']['vpg'][:segment_amount]
+        apgs = f['signals']['apg'][:segment_amount]
 
-            ages = f['demographics']['age'][:segment_amount]
-            genders = f['demographics']['gender'][:segment_amount]
-            heights = f['demographics']['height'][:segment_amount]
-            weights = f['demographics']['weight'][:segment_amount]
-            bmis = f['demographics']['bmi'][:segment_amount]
+        ages = f['demographics']['age'][:segment_amount]
+        genders = f['demographics']['gender'][:segment_amount]
+        heights = f['demographics']['height'][:segment_amount]
+        weights = f['demographics']['weight'][:segment_amount]
+        bmis = f['demographics']['bmi'][:segment_amount]
 
-            sbps = f['targets']['sbp'][:segment_amount]
-            dbps = f['targets']['dbp'][:segment_amount]
+        sbps = f['targets']['sbp'][:segment_amount]
+        dbps = f['targets']['dbp'][:segment_amount]
 
-            # Split the data
-            data_cal = {'signals': {
-                'ppg': [], 'vpg': [], 'apg': []
-            }, 'demographics': {
-                'age': [], 'gender': [], 'height': [], 'weight': [], 'bmi': []
-            }, 'targets': {
-                'sbp': [], 'dbp': []
-            }}
+        # Split the data
+        data_cal = {'signals': {
+            'ppg': [], 'vpg': [], 'apg': []
+        }, 'demographics': {
+            'age': [], 'gender': [], 'height': [], 'weight': [], 'bmi': []
+        }, 'targets': {
+            'sbp': [], 'dbp': [], 'subject': []
+        }}
 
-            for i in tqdm(range(0, segment_amount), desc=f'Calibration Data'):
-                ppg_temp = (ppgs[i] - np.min(ppgs[i])) / (np.max(ppgs[i]) - np.min(ppgs[i]))
-                vpg_temp = (vpgs[i] - np.min(vpgs[i])) / (np.max(vpgs[i]) - np.min(vpgs[i]))
-                apg_temp = (apgs[i] - np.min(apgs[i])) / (np.max(apgs[i]) - np.min(apgs[i]))
+        for i in tqdm(range(0, segment_amount), desc=f'Calibration Data'):
+            ppg_temp = (ppgs[i] - np.min(ppgs[i])) / (np.max(ppgs[i]) - np.min(ppgs[i]))
+            vpg_temp = (vpgs[i] - np.min(vpgs[i])) / (np.max(vpgs[i]) - np.min(vpgs[i]))
+            apg_temp = (apgs[i] - np.min(apgs[i])) / (np.max(apgs[i]) - np.min(apgs[i]))
 
-                data_cal['signals']['ppg'].append(ppg_temp.reshape(1, SIGNAL_LENGTH))
-                data_cal['signals']['vpg'].append(vpg_temp.reshape(1, SIGNAL_LENGTH))
-                data_cal['signals']['apg'].append(apg_temp.reshape(1, SIGNAL_LENGTH))
-                data_cal['demographics']['age'].append(ages[i])
-                data_cal['demographics']['gender'].append(genders[i])
-                data_cal['demographics']['height'].append(heights[i])
-                data_cal['demographics']['weight'].append(weights[i])
-                data_cal['demographics']['bmi'].append(bmis[i])
-                data_cal['targets']['sbp'].append(sbps[i])
-                data_cal['targets']['dbp'].append(dbps[i])
+            data_cal['signals']['ppg'].append(ppg_temp.reshape(1, SIGNAL_LENGTH))
+            data_cal['signals']['vpg'].append(vpg_temp.reshape(1, SIGNAL_LENGTH))
+            data_cal['signals']['apg'].append(apg_temp.reshape(1, SIGNAL_LENGTH))
+            data_cal['demographics']['age'].append(ages[i])
+            data_cal['demographics']['gender'].append(genders[i])
+            data_cal['demographics']['height'].append(heights[i])
+            data_cal['demographics']['weight'].append(weights[i])
+            data_cal['demographics']['bmi'].append(bmis[i])
+            data_cal['targets']['sbp'].append(sbps[i])
+            data_cal['targets']['dbp'].append(dbps[i])
+            data_cal['targets']['subject'].append(subjects[i])
 
-            f.close()
-            del f
+        f.close()
+        del f
 
-            # Convert to numpy arrays
-            for key in data_cal['signals'].keys():
-                data_cal['signals'][key] = np.array(data_cal['signals'][key])
-            for key in data_cal['demographics'].keys():
-                data_cal['demographics'][key] = np.array(data_cal['demographics'][key])
-            for key in data_cal['targets'].keys():
-                data_cal['targets'][key] = np.array(data_cal['targets'][key])
+        # Convert to numpy arrays
+        for key in data_cal['signals'].keys():
+            data_cal['signals'][key] = np.array(data_cal['signals'][key])
+        for key in data_cal['demographics'].keys():
+            data_cal['demographics'][key] = np.array(data_cal['demographics'][key])
+        for key in data_cal['targets'].keys():
+            data_cal['targets'][key] = np.array(data_cal['targets'][key])
 
-            # Min-max Normalize PPG, VPG, and APG
-            #data_cal['signals']['ppg'] = (data_cal['signals']['ppg'] - min_ppg) / (max_ppg - min_ppg)
-            #data_cal['signals']['vpg'] = (data_cal['signals']['vpg'] - min_vpg) / (max_vpg - min_vpg)
-            #data_cal['signals']['apg'] = (data_cal['signals']['apg'] - min_apg) / (max_apg - min_apg)
+        # Min-max Normalize PPG, VPG, and APG
+        #data_cal['signals']['ppg'] = (data_cal['signals']['ppg'] - min_ppg) / (max_ppg - min_ppg)
+        #data_cal['signals']['vpg'] = (data_cal['signals']['vpg'] - min_vpg) / (max_vpg - min_vpg)
+        #data_cal['signals']['apg'] = (data_cal['signals']['apg'] - min_apg) / (max_apg - min_apg)
 
-            #data_cal['signals']['ppg'] = (data_cal['signals']['ppg'] - mean_ppg) / std_ppg
-            #data_cal['signals']['vpg'] = (data_cal['signals']['vpg'] - mean_vpg) / std_vpg
-            #data_cal['signals']['apg'] = (data_cal['signals']['apg'] - mean_apg) / std_apg
+        #data_cal['signals']['ppg'] = (data_cal['signals']['ppg'] - mean_ppg) / std_ppg
+        #data_cal['signals']['vpg'] = (data_cal['signals']['vpg'] - mean_vpg) / std_vpg
+        #data_cal['signals']['apg'] = (data_cal['signals']['apg'] - mean_apg) / std_apg
 
-            # Normalize age
-            data_cal['demographics']['age'] = (data_cal['demographics']['age'] - mean_age) / std_age
-            # Normalized height, weight, and BMI, where NA is excluded
-            data_cal['demographics']['height'] = (data_cal['demographics']['height'] - mean_height) / std_height
-            data_cal['demographics']['weight'] = (data_cal['demographics']['weight'] - mean_weight) / std_weight
-            data_cal['demographics']['bmi'] = (data_cal['demographics']['bmi'] - mean_bmi) / std_bmi
+        # Normalize age
+        data_cal['demographics']['age'] = (data_cal['demographics']['age'] - mean_age) / std_age
+        # Normalized height, weight, and BMI, where NA is excluded
+        data_cal['demographics']['height'] = (data_cal['demographics']['height'] - mean_height) / std_height
+        data_cal['demographics']['weight'] = (data_cal['demographics']['weight'] - mean_weight) / std_weight
+        data_cal['demographics']['bmi'] = (data_cal['demographics']['bmi'] - mean_bmi) / std_bmi
 
-            # Replace NaN with 0
-            for key in data_cal['demographics'].keys():
-                data_cal['demographics'][key][np.isnan(data_cal['demographics'][key])] = 0
+        # Replace NaN with 0
+        for key in data_cal['demographics'].keys():
+            data_cal['demographics'][key][np.isnan(data_cal['demographics'][key])] = 0
 
-            if OUTPUT_NORMALIZED:
-                data_cal['targets']['sbp'] = (data_cal['targets']['sbp'] - min_sbp) / (max_sbp - min_sbp)
-                data_cal['targets']['dbp'] = (data_cal['targets']['dbp'] - min_dbp) / (max_dbp - min_dbp)
+        if OUTPUT_NORMALIZED:
+            data_cal['targets']['sbp'] = (data_cal['targets']['sbp'] - min_sbp) / (max_sbp - min_sbp)
+            data_cal['targets']['dbp'] = (data_cal['targets']['dbp'] - min_dbp) / (max_dbp - min_dbp)
 
-            pickle.dump(data_cal, open(os.path.join(FOLDED_DATASET_PATH, f'cal_{fold_id}.pkl'), 'wb'))
+        pickle.dump(data_cal, open(os.path.join(FOLDED_DATASET_PATH, f'cal_{fold_id}.pkl'), 'wb'))
 
-            del data_cal
+        del data_cal
 
-            print(f'\nThis calibration-free folds contains {segment_amount} segments')
+        print(f'\nThis calibration-free folds contains {segment_amount} segments')
 
 if __name__ == '__main__':
     fold_data()
