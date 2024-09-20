@@ -5,21 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b97da8ca-1c4d-4aeb-832d-7ad58f650c8a" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/Scripts/Models/loss.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Data/PulseDB/Datasets/create_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/PulseDB/Datasets/create_dataset.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Data/PulseDB/Datasets/split_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/Data/PulseDB/Datasets/split_data.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Data/Rafita/Dataset/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Data/Rafita/Dataset/create_dataset.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Data/Rafita/Dataset/split_data.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/Scripts/Models/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/Models/submodules.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Models/submodules.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/data_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/evaluate_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/evaluate_model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/metrics.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/metrics.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/model_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/model_pipeline.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Scripts/train_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/train_model.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
