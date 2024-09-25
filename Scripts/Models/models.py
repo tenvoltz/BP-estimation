@@ -362,8 +362,8 @@ class TransFMSD(nn.Module):
         self.fusion_branch = nn.ModuleList(fusion_branch)
         self.flatten = nn.ModuleList(flatten_branch)
         self.feature_dim = 512
-        self.feautre_head = nn.Sequential(
-            nn.LazyLinear(512),
+        self.feature_head = nn.Sequential(
+            nn.LazyLinear(self.feature_dim),
             nn.Dropout(0.1),
         )
 
@@ -406,7 +406,7 @@ class TransFMSD(nn.Module):
         #mixer_output = torch.cat(mixer_output, dim=1)
         mixer_output = torch.stack(mixer_output, dim=1).sum(dim=1)
         x = torch.cat((cnn_output, mixer_output, transformer_output), dim=1)
-        output = self.feautre_head(x)
+        output = self.feature_head(x)
         x = self.regression_head(output)
         return x, output
 

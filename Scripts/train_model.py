@@ -109,31 +109,37 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
         model = model.cuda() if IS_CUDA else model
 
         # Loss function, optimizer and scheduler
-        num_classes = get_patient_amount()
-        feature_dim = model.feature_dim
-        centre_loss = CenterLoss(num_classes=num_classes, feat_dim=feature_dim).cuda() if IS_CUDA \
-            else CenterLoss(num_classes=num_classes, feat_dim=feature_dim)
-        optimizer_2 = torch.optim.Adam(centre_loss.parameters(), lr=0.001)
-        main_loss = MSELoss().cuda() if IS_CUDA else MSELoss()
-        loss_fn = MixedLoss(loss_dict={'Main': main_loss, 'Center': [centre_loss, 0.05]}).cuda() if IS_CUDA \
-            else MixedLoss(loss_dict={'Main': main_loss, 'Center': [centre_loss, 0.05]})
-        #loss_fn = MixedLoss(num_classes=num_classes, feat_dim=feature_dim).cuda() if IS_CUDA \
-        #    else MixedLoss(num_classes=num_classes, feat_dim=feature_dim)
-        # loss_fn = MSELoss().cuda() if IS_CUDA else MSELoss()
-        mse_loss_fn = MSELoss().cuda() if IS_CUDA else MSELoss()
-        mae_loss_fn = MAELoss().cuda() if IS_CUDA else MAELoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-        scheduler = None
-        #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
-        #                                                       factor=LR_SCHEDULER_FACTOR,
-        #                                                       patience=LR_SCHEDULER_PATIENCE)
+        mse_loss_fn = MSELoss().cuda() if IS_CUDA else MSELoss()    # For the metrics
+        mae_loss_fn = MAELoss().cuda() if IS_CUDA else MAELoss()    # For the metrics
+        main_loss = nn.MSELoss().cuda() if IS_CUDA else nn.MSELoss()
+        subject_loss = SubjectLoss(num_classes=get_patient_amount(), feat_dim=model.feature_dim).cuda() if IS_CUDA \
+            else SubjectLoss(num_classes=get_patient_amount(), feat_dim=model.feature_dim)
+        bp_ranges = {0: [min_sbp, max_sbp], 1: [min_dbp, max_dbp]}
+        class_loss = BPClassLoss(num_bins=[10, 10], ranges=bp_ranges, feature_dim=model.feature_dim).cuda() if IS_CUDA \
+            else BinLoss(num_bins=[10, 10], ranges=bp_ranges, feature_dim=model.feature_dim)
+
+        loss_dict = {
+            'Main': (main_loss, 1),
+            'Subject (features)': (subject_loss, 0.05),
+            #'Class (features)': (class_loss, 0.05),
+        }
+        loss_fn = CombinedLoss(loss_dict).cuda() if IS_CUDA else CombinedLoss(loss_dict)
+
+        optimizers = [
+            torch.optim.Adam(model.parameters(), lr=LEARNING_RATE),
+            torch.optim.Adam(subject_loss.parameters(), lr=0.5),
+            #torch.optim.Adam(class_loss.parameters(), lr=0.001)
+        ]
+
+        schedulers = {
+            torch.optim.lr_scheduler.MultiStepLR(optimizers[1], milestones=[10, 20, 30, 40], gamma=0.5),
+        }
+        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=LR_SCHEDULER_FACTOR, patience=LR_SCHEDULER_PATIENCE)
 
         # Early stopping
         best_loss = float('inf')
         patience = EARLY_STOPPING_PATIENCE
 
-
-        # Train the model
         for epoch in tqdm(range(EPOCHS), desc=f'Fold {fold_id} - Training Epochs'):
             train_loss, train_mse, train_mae = 0, 0, 0
             eval_loss, eval_mse, eval_mae = 0, 0, 0
@@ -141,14 +147,12 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
 
             model.train()
             for batch_idx, batch in enumerate(tqdm(train_loader, f'Fold {fold_id} Epoch {epoch} - Training')):
-                # Move the data to the GPU
                 if IS_CUDA:
                     batch['inputs'] = {key: tensor.cuda() for key, tensor in batch['inputs'].items()}
                     batch['targets'] = batch['targets'].cuda()
-                for param in model.parameters():
-                    param.grad = None
-                for param in loss_fn.parameters():
-                    param.grad = None
+                model.zero_grad()
+                for loss_func, _ in loss_dict.values():
+                    loss_func.zero_grad()
                 y_pred, features = model(batch['inputs'])
                 loss = loss_fn(y_pred, features, batch['targets'])
                 loss.backward()
@@ -157,19 +161,20 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
                         if param.grad is not None:
                             norm = param.grad.detach().norm().item()
                             writer.add_scalar(f'{MODEL}/{fold_id}/Gradient Norm/{name}', norm, epoch)
-                optimizer.step()
 
-                for param in loss_fn.loss_dict['Center'][0].parameters():
-                    param.grad.data *= 1. / loss_fn.loss_dict['Center'][1]
+                for loss_func, weight in loss_dict.values():
+                    for param in loss_func.parameters():
+                        param.grad.data *= 1. / weight
 
+                for optimizer in optimizers:
+                    optimizer.step()
 
-                optimizer_2.step()
                 with torch.no_grad():
                     mse_loss = mse_loss_fn(y_pred, batch['targets'])
                     mae_loss = mae_loss_fn(y_pred, batch['targets'])
                     train_loss += loss.item() * len(batch['targets'])
-                    train_mse += mse_loss.item() * len(batch['targets'])
-                    train_mae += mae_loss.item() * len(batch['targets'])
+                    train_mse += mse_loss.item()
+                    train_mae += mae_loss.item()
 
             model.eval()
             with torch.no_grad():
@@ -183,8 +188,8 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
                     mse_loss = mse_loss_fn(y_pred, batch['targets'])
                     mae_loss = mae_loss_fn(y_pred, batch['targets'])
                     eval_loss += loss.item() * len(batch['targets'])
-                    eval_mse += mse_loss.item() * len(batch['targets'])
-                    eval_mae += mae_loss.item() * len(batch['targets'])
+                    eval_mse += mse_loss.item()
+                    eval_mae += mae_loss.item()
 
             if CALIBRATION_FREE:
                 with torch.no_grad():
@@ -198,8 +203,8 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
                         mse_loss = mse_loss_fn(y_pred, batch['targets'])
                         mae_loss = mae_loss_fn(y_pred, batch['targets'])
                         cal_loss += loss.item() * len(batch['targets'])
-                        cal_mse += mse_loss.item() * len(batch['targets'])
-                        cal_mae += mae_loss.item() * len(batch['targets'])
+                        cal_mse += mse_loss.item()
+                        cal_mae += mae_loss.item()
 
             num_train_samples = len(train_loader.dataset)
             train_loss /= num_train_samples
@@ -226,8 +231,8 @@ def train_model(outputs_path=OUTPUTS_PATH, writer=None):
                     for metric, value in zip(['Loss', 'MSE', 'MAE'], [cal_loss, cal_mse, cal_mae]):
                         writer.add_scalar(f'{MODEL}/{fold_id}/{metric}/Calibration', value, epoch)
 
-            if scheduler is not None:
-                scheduler.step(eval_mse)
+            for scheduler in schedulers:
+                scheduler.step()
 
             if eval_loss < best_fold_loss:
                 best_fold_id = fold_id
